@@ -1,0 +1,40 @@
+
+> presensi-app@0.1.0 build
+> next build
+
+▲ Next.js 16.1.6 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 4.7s
+  Running TypeScript ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/20) ...
+  Generating static pages using 15 workers (5/20) 
+  Generating static pages using 15 workers (10/20) 
+  Generating static pages using 15 workers (15/20) 
+✓ Generating static pages using 15 workers (20/20) in 1001.8ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /admin/dashboard
+├ ○ /admin/guru
+├ ○ /admin/kelas
+├ ○ /admin/mapel
+├ ○ /admin/mapel/analitik
+├ ○ /admin/settings
+├ ○ /admin/siswa
+├ ○ /admin/verifikasi
+├ ○ /guru/dashboard
+├ ○ /guru/izin
+├ ○ /guru/presensi
+├ ○ /login
+├ ○ /ortu/dashboard
+├ ○ /ortu/izin
+├ ○ /ortu/riwayat
+└ ○ /unauthorized
+
+
+○  (Static)  prerendered as static content
+
