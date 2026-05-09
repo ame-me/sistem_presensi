@@ -37,46 +37,56 @@ import {
     Bell
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
+import { useAppStore } from "@/lib/store";
+import { useEffect } from "react";
+import { toast } from "sonner";
 export default function AdminSettingsPage() {
-    const [waStatus, setWaStatus] = useState<"connected" | "disconnected">("connected");
+    const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
+    const setSelectedTahunAjaran = useAppStore((s) => s.setSelectedTahunAjaran);
+
+    // Parse existing year and semester from global state (e.g. "2025/2026 Genap")
+    const parts = selectedTahunAjaran ? selectedTahunAjaran.split(" ") : ["2025/2026", "Ganjil"];
+    const [yearPart, setYearPart] = useState(parts[0]);
+    const [semesterPart, setSemesterPart] = useState(parts[1]);
+
+    useEffect(() => {
+        if (selectedTahunAjaran) {
+            const p = selectedTahunAjaran.split(" ");
+            setYearPart(p[0]);
+            setSemesterPart(p[1] || "Ganjil");
+        }
+    }, [selectedTahunAjaran]);
+
+    const handleSaveYear = () => {
+        const newValue = `${yearPart} ${semesterPart}`;
+        setSelectedTahunAjaran(newValue);
+        toast.success(`Tahun Ajaran Aktif diubah ke ${newValue}`);
+    };
 
     return (
         <div className="space-y-8 font-sans pb-20">
-            {/* Header */}
+            {/* Header Area */}
             <div>
                 <h1 className="text-3xl font-extrabold text-[#000080] tracking-tight">Pengaturan Sistem</h1>
                 <p className="text-slate-500 font-medium mt-1">
-                    Konfigurasi global aplikasi SIPANDU, integrasi WhatsApp, dan manajemen akses.
+                    Konfigurasi global akademik sekolah dan aturan presensi.
                 </p>
             </div>
 
             <Tabs defaultValue="school" className="space-y-6">
                 <TabsList className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm flex flex-wrap h-auto gap-2">
-                    <TabsTrigger value="school" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-4 font-bold h-10">
+                    <TabsTrigger value="school" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-4 font-bold h-10 transition-all">
                         <School className="w-4 h-4 mr-2" />
                         Identitas Sekolah
                     </TabsTrigger>
-                    <TabsTrigger value="whatsapp" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-4 font-bold h-10">
-                        <MessageSquare className="w-4 h-4 mr-2" />
-                        WhatsApp API
-                    </TabsTrigger>
-                    <TabsTrigger value="attendance" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-4 font-bold h-10">
+                    <TabsTrigger value="attendance" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-4 font-bold h-10 transition-all">
                         <Clock className="w-4 h-4 mr-2" />
                         Aturan Presensi
                     </TabsTrigger>
-                    <TabsTrigger value="access" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-4 font-bold h-10">
-                        <Shield className="w-4 h-4 mr-2" />
-                        Akses & User
-                    </TabsTrigger>
-                    <TabsTrigger value="backup" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-4 font-bold h-10">
-                        <Database className="w-4 h-4 mr-2" />
-                        Backup & Data
-                    </TabsTrigger>
                 </TabsList>
 
-                {/* TAB 1: IDENTITAS SEKOLAH */}
-                <TabsContent value="school" className="space-y-6">
+                {/* ===================== KONTEN ADMIN BIASA ===================== */}
+                <TabsContent value="school" className="space-y-6 animate-in slide-in-from-bottom-2">
                     <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden max-w-4xl">
                         <CardHeader className="bg-slate-50/50 border-b border-slate-100">
                             <CardTitle className="text-[#000080] text-lg font-bold">Profil Sekolah & Tahun Ajaran</CardTitle>
@@ -98,7 +108,7 @@ export default function AdminSettingsPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Tahun Ajaran Aktif</Label>
-                                    <Select defaultValue="2025/2026">
+                                    <Select value={yearPart} onValueChange={setYearPart}>
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="2024/2025">2024 / 2025</SelectItem>
@@ -108,102 +118,25 @@ export default function AdminSettingsPage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label>Semester Aktif</Label>
-                                    <Select defaultValue="ganjil">
+                                    <Select value={semesterPart} onValueChange={setSemesterPart}>
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="ganjil">Ganjil</SelectItem>
-                                            <SelectItem value="genap">Genap</SelectItem>
+                                            <SelectItem value="Ganjil">Ganjil</SelectItem>
+                                            <SelectItem value="Genap">Genap</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
                         </CardContent>
                         <CardFooter className="bg-slate-50 px-6 py-4 flex justify-end border-t border-slate-100">
-                            <Button className="bg-[#000080] text-white font-bold">
+                            <Button className="bg-[#000080] text-white font-bold" onClick={handleSaveYear}>
                                 <Save className="w-4 h-4 mr-2" /> Simpan Perubahan
                             </Button>
                         </CardFooter>
                     </Card>
                 </TabsContent>
 
-                {/* TAB 2: WHATSAPP API */}
-                <TabsContent value="whatsapp" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* Connection Status */}
-                        <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
-                            <CardHeader className="bg-green-50 border-b border-green-100">
-                                <CardTitle className="text-green-800 text-base font-bold flex items-center gap-2">
-                                    <Smartphone className="w-5 h-5" />
-                                    Status Koneksi
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6 text-center space-y-4">
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${waStatus === 'connected' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                    {waStatus === 'connected' ? <Link className="w-8 h-8" /> : <Unlink className="w-8 h-8" />}
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800 text-lg">
-                                        {waStatus === 'connected' ? 'Terhubung' : 'Terputus'}
-                                    </h3>
-                                    <p className="text-sm text-slate-500 mt-1">
-                                        {waStatus === 'connected' ? 'Gateway Fontee siap mengirim pesan.' : 'Mohon periksa token API Anda.'}
-                                    </p>
-                                </div>
-                                <Button variant="outline" size="sm" onClick={() => setWaStatus(waStatus === 'connected' ? 'disconnected' : 'connected')}>
-                                    <RefreshCw className="w-3 h-3 mr-2" /> Cek Koneksi
-                                </Button>
-                            </CardContent>
-                        </Card>
-
-                        {/* API Configuration */}
-                        <Card className="md:col-span-2 border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
-                            <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-                                <CardTitle className="text-[#000080] text-base font-bold">Instansi & Token</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6 space-y-4">
-                                <div className="space-y-2">
-                                    <Label>Fontee API Token</Label>
-                                    <div className="flex gap-2">
-                                        <Input type="password" value="************************" readOnly className="font-mono bg-slate-50" />
-                                        <Button variant="outline">Ubah</Button>
-                                    </div>
-                                    <p className="text-[10px] text-slate-400">Jangan bagikan token ini kepada siapapun.</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>Nomor Pengirim (Sender ID)</Label>
-                                    <Input value="6281234567890 (SIPANDU BOT)" readOnly className="bg-slate-50" />
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Templates */}
-                        <Card className="md:col-span-3 border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
-                            <CardHeader className="bg-slate-50/50 border-b border-slate-100">
-                                <CardTitle className="text-[#000080] text-base font-bold">Template Pesan Otomatis</CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <Label className="flex justify-between">
-                                        <span>Notifikasi Alpha (Tanpa Keterangan)</span>
-                                        <Badge variant="outline" className="text-[10px]">Aktif</Badge>
-                                    </Label>
-                                    <Textarea rows={4} className="text-xs font-mono" defaultValue="Yth. Orang Tua dari [nama_siswa], kami menginfokan bahwa anak Bapak/Ibu tidak hadir pada mata pelajaran [mapel] jam ke-[jam] tanpa keterangan. Mohon konfirmasinya. Terima kasih. - SIPANDU SMPK Santa Maria 2" />
-                                    <p className="text-[10px] text-slate-400">Variabel: [nama_siswa], [mapel], [jam], [tanggal]</p>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="flex justify-between">
-                                        <span>Notifikasi Terlambat</span>
-                                        <Badge variant="outline" className="text-[10px]">Aktif</Badge>
-                                    </Label>
-                                    <Textarea rows={4} className="text-xs font-mono" defaultValue="Yth. Orang Tua, Siswa atas nama [nama_siswa] tercatat masuk kelas [mapel] TERLAMBAT [durasi] menit pada jam pelajaran ke-[jam]. Mohon pembinaannya di rumah. Terima kasih." />
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
-                </TabsContent>
-
-                {/* TAB 3: ATTENDANCE RULES */}
-                <TabsContent value="attendance" className="space-y-6">
+                <TabsContent value="attendance" className="space-y-6 animate-in slide-in-from-bottom-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
                             <CardHeader className="bg-slate-50/50 border-b border-slate-100">
@@ -242,6 +175,9 @@ export default function AdminSettingsPage() {
                                     </div>
                                 </div>
                             </CardContent>
+                            <CardFooter className="bg-slate-50 px-6 py-4 flex justify-end border-t border-slate-100">
+                                <Button className="bg-[#000080] text-white">Simpan Waktu</Button>
+                            </CardFooter>
                         </Card>
 
                         <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
@@ -277,91 +213,9 @@ export default function AdminSettingsPage() {
                                     </Select>
                                 </div>
                             </CardContent>
-                        </Card>
-                    </div>
-                </TabsContent>
-
-                {/* TAB 4: ACCESS & USER */}
-                <TabsContent value="access" className="space-y-6">
-                    <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
-                        <CardHeader className="bg-slate-50/50 border-b border-slate-100 px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <CardTitle className="text-[#000080] text-lg font-bold">Manajemen User</CardTitle>
-                            <Input placeholder="Cari User..." className="w-full md:w-64 bg-white" />
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <div className="p-4 bg-amber-50 border-b border-amber-100 flex items-center gap-3 text-sm text-amber-800">
-                                <AlertCircle className="w-4 h-4" />
-                                <span>Reset Password akan mengubah password user menjadi default: <b>guru123</b></span>
-                            </div>
-                            <table className="w-full text-sm text-left">
-                                <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
-                                    <tr>
-                                        <th className="px-6 py-3">Nama User</th>
-                                        <th className="px-6 py-3">Role</th>
-                                        <th className="px-6 py-3">Terakhir Login</th>
-                                        <th className="px-6 py-3 text-right">Aksi</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {[
-                                        { name: "Administrator", role: "SUPER ADMIN", last: "Sedang Aktif" },
-                                        { name: "Budi Santoso", role: "GURU (Wali Kelas)", last: "2 jam lalu" },
-                                        { name: "Siti Aminah", role: "GURU", last: "Kemarin" },
-                                    ].map((u, i) => (
-                                        <tr key={i} className="hover:bg-slate-50/50">
-                                            <td className="px-6 py-3 font-bold text-slate-700">{u.name}</td>
-                                            <td className="px-6 py-3">
-                                                <Badge variant="outline">{u.role}</Badge>
-                                            </td>
-                                            <td className="px-6 py-3 text-slate-500 font-mono text-xs">{u.last}</td>
-                                            <td className="px-6 py-3 text-right">
-                                                <Button size="sm" variant="ghost" className="h-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50">
-                                                    <KeyRound className="w-3 h-3 mr-1" /> Reset Pass
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                {/* TAB 5: BACKUP & DATA */}
-                <TabsContent value="backup" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
-                            <CardHeader className="bg-blue-50 border-b border-blue-100">
-                                <CardTitle className="text-blue-900 text-base font-bold flex items-center gap-2">
-                                    <Download className="w-5 h-5" />
-                                    Ekspor Database
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6 space-y-4">
-                                <p className="text-sm text-slate-600">
-                                    Unduh salinan lengkap database (SQL) untuk keperluan arsip atau pemindahan server.
-                                </p>
-                                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold">
-                                    Download Backup (.sql)
-                                </Button>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
-                            <CardHeader className="bg-red-50 border-b border-red-100">
-                                <CardTitle className="text-red-900 text-base font-bold flex items-center gap-2">
-                                    <Trash2 className="w-5 h-5" />
-                                    Maintenance
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="p-6 space-y-4">
-                                <p className="text-sm text-slate-600">
-                                    Hapus log notifikasi dan data sampah lainnya untuk menjaga performa sistem.
-                                </p>
-                                <Button variant="destructive" className="w-full font-bold">
-                                    Bersihkan Cache & Log Lama
-                                </Button>
-                            </CardContent>
+                            <CardFooter className="bg-slate-50 px-6 py-4 flex justify-end border-t border-slate-100">
+                                <Button className="bg-[#000080] text-white">Simpan Izin</Button>
+                            </CardFooter>
                         </Card>
                     </div>
                 </TabsContent>

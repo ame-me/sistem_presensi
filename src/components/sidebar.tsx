@@ -11,11 +11,14 @@ import {
     Users,
     BookOpen,
     School,
-    Settings,
     LogOut,
     GraduationCap,
     Menu,
     X,
+    Building2,
+    Activity,
+    Shield,
+    Database,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -27,18 +30,26 @@ interface NavItem {
 }
 
 interface SidebarProps {
-    role: "ADMIN" | "GURU" | "ORTU";
+    role: "ADMIN" | "ADMIN_IT" | "GURU" | "ORTU";
     userName: string;
+    teacherCode?: string;
 }
 
 const navItems: Record<string, NavItem[]> = {
     ADMIN: [
         { label: "Dashboard", href: "/admin/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { label: "Kelas", href: "/admin/kelas", icon: <School className="w-5 h-5" /> },
+        { label: "Daftar Kelas", href: "/admin/kelas", icon: <School className="w-5 h-5" /> },
+        { label: "Manajemen Ruangan", href: "/admin/ruangan", icon: <LayoutDashboard className="w-5 h-5" /> },
         { label: "Mata Pelajaran", href: "/admin/mapel", icon: <BookOpen className="w-5 h-5" /> },
         { label: "Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
         { label: "Siswa", href: "/admin/siswa", icon: <GraduationCap className="w-5 h-5" /> },
-        { label: "Pengaturan", href: "/admin/settings", icon: <Settings className="w-5 h-5" /> },
+        { label: "Rekap Presensi", href: "/admin/rekap", icon: <ClipboardList className="w-5 h-5" /> },
+    ],
+    ADMIN_IT: [
+        { label: "Dashboard", href: "/it/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: "Akses User", href: "/it/users", icon: <Shield className="w-5 h-5" /> },
+        { label: "Akun Orang Tua", href: "/it/ortu", icon: <Users className="w-5 h-5" /> },
+        { label: "Backup Data", href: "/it/backup", icon: <Database className="w-5 h-5" /> },
     ],
     GURU: [
         { label: "Dashboard", href: "/guru/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
@@ -47,6 +58,7 @@ const navItems: Record<string, NavItem[]> = {
     ],
     ORTU: [
         { label: "Dashboard", href: "/ortu/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: "Jadwal Pelajaran", href: "/ortu/jadwal", icon: <BookOpen className="w-5 h-5" /> },
         { label: "Ajukan Izin", href: "/ortu/izin", icon: <FileText className="w-5 h-5" /> },
         { label: "Riwayat Presensi", href: "/ortu/riwayat", icon: <ClipboardList className="w-5 h-5" /> },
     ],
@@ -54,21 +66,38 @@ const navItems: Record<string, NavItem[]> = {
 
 const roleLabels: Record<string, string> = {
     ADMIN: "Administrator",
+    KEPALA_SEKOLAH: "Kepala Sekolah",
+    ADMIN_IT: "Admin IT Server",
     GURU: "Portal Guru",
     ORTU: "Portal Orang Tua",
 };
 
 const roleColors: Record<string, string> = {
     ADMIN: "bg-[#000080] shadow-blue-900/10",
+    ADMIN_IT: "bg-[#000080] shadow-blue-900/10",
     GURU: "bg-[#000080] shadow-blue-900/10",
     ORTU: "bg-[#000080] shadow-blue-900/10",
 };
 
-export function Sidebar({ role, userName }: SidebarProps) {
+export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
     const logout = useAppStore((s) => s.logout);
-    const items = navItems[role] || [];
+
+    // Identifikasi Kepala Sekolah (ADMIN dengan kode 1)
+    const isKepalaSekolah = role === "ADMIN" && teacherCode === "1";
+
+    const items = isKepalaSekolah
+        ? [
+            { label: "Dashboard", href: "/admin/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
+            { label: "Data Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
+            { label: "Data Ruangan", href: "/admin/ruangan", icon: <Building2 className="w-5 h-5" /> },
+            { label: "Laporan Presensi", href: "/admin/mapel/analitik", icon: <ClipboardList className="w-5 h-5" /> },
+        ]
+        : role === "ADMIN_TU"
+        ? navItems["ADMIN"]
+        : navItems[role] || [];
+
     const [mobileOpen, setMobileOpen] = useState(false);
 
     function handleLogout() {
@@ -107,11 +136,10 @@ export function Sidebar({ role, userName }: SidebarProps) {
                         <div className="flex items-center gap-3">
                             <div
                                 className={cn(
-                                    "w-10 h-10 rounded-xl flex items-center justify-center shadow-md",
-                                    roleColors[role]
+                                    "w-10 h-10 rounded-xl flex items-center justify-center bg-white shadow-sm border border-slate-100 p-0.5",
                                 )}
                             >
-                                <GraduationCap className="w-5 h-5 text-white" />
+                                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
                             </div>
                             <div>
                                 <h1 className="text-sm font-extrabold text-[#000080] tracking-tight">SIPANDU</h1>
@@ -158,7 +186,7 @@ export function Sidebar({ role, userName }: SidebarProps) {
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-slate-800 truncate">{userName}</p>
-                            <p className="text-[10px] font-medium text-slate-500 uppercase">{roleLabels[role]}</p>
+                            <p className="text-[10px] font-medium text-slate-500 uppercase">{isKepalaSekolah ? roleLabels.KEPALA_SEKOLAH : roleLabels[role]}</p>
                         </div>
                     </div>
                     <Button

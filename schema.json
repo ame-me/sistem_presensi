@@ -1,0 +1,107 @@
+{
+    "tb_mapel": [
+        {
+            "Field": "id_mapel",
+            "Type": "int(11)",
+            "Null": "NO",
+            "Key": "PRI",
+            "Default": null,
+            "Extra": "auto_increment"
+        },
+        {
+            "Field": "kode_mapel",
+            "Type": "varchar(20)",
+            "Null": "NO",
+            "Key": "UNI",
+            "Default": null,
+            "Extra": ""
+        },
+        {
+            "Field": "nama_mapel",
+            "Type": "varchar(100)",
+            "Null": "NO",
+            "Key": "",
+            "Default": null,
+            "Extra": ""
+        },
+        {
+            "Field": "grade",
+            "Type": "varchar(20)",
+            "Null": "NO",
+            "Key": "",
+            "Default": null,
+            "Extra": ""
+        },
+        {
+            "Field": "hours",
+            "Type": "int(11)",
+            "Null": "YES",
+            "Key": "",
+            "Default": "0",
+            "Extra": ""
+        },
+        {
+            "Field": "cat",
+            "Type": "varchar(50)",
+            "Null": "YES",
+            "Key": "",
+            "Default": "Umum",
+            "Extra": ""
+        },
+        {
+            "Field": "created_at",
+            "Type": "timestamp",
+            "Null": "NO",
+            "Key": "",
+            "Default": "current_timestamp()",
+            "Extra": ""
+        }
+    ],
+    "tb_mapel_data": [
+        {
+            "id_mapel": 1,
+            "kode_mapel": "MTK7",
+            "nama_mapel": "Matematika",
+            "grade": "VII",
+            "hours": 4,
+            "cat": "Umum",
+            "created_at": "2026-03-13 06:26:21"
+        },
+        {
+            "id_mapel": 2,
+            "kode_mapel": "MTK8",
+            "nama_mapel": "Matematika",
+            "grade": "VIII",
+            "hours": 4,
+            "cat": "Umum",
+            "created_at": "2026-03-13 06:26:21"
+        },
+        {
+            "id_mapel": 3,
+            "kode_mapel": "MTK9",
+            "nama_mapel": "Matematika",
+            "grade": "IX",
+            "hours": 4,
+            "cat": "Umum",
+            "created_at": "2026-03-13 06:26:21"
+        },
+        {
+            "id_mapel": 4,
+            "kode_mapel": "IND7",
+            "nama_mapel": "Bahasa Indonesia",
+            "grade": "VII",
+            "hours": 4,
+            "cat": "Umum",
+            "created_at": "2026-03-13 06:26:21"
+        },
+        {
+            "id_mapel": 5,
+            "kode_mapel": "IND8",
+            "nama_mapel": "Bahasa Indonesia",
+            "grade": "VIII",
+            "hours": 4,
+            "cat": "Umum",
+            "created_at": "2026-03-13 06:26:21"
+        }
+    ]
+}

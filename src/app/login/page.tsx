@@ -32,28 +32,42 @@ export default function LoginPage() {
         // Slight delay for UX
         await new Promise((r) => setTimeout(r, 500));
 
-        const success = login(email, password);
+        let success = login(email, password);
+        let user = useAppStore.getState().currentUser;
 
         if (!success) {
-            setError("Email atau password salah");
+            try {
+                const res = await fetch(`http://127.0.0.1/presensipander/api/ortu/index.php?action=login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ nik: email, password: password })
+                });
+                const data = await res.json();
+                
+                if (data.status === "success" && data.data) {
+                    const ortuUser: any = {
+                        id: data.data.id,
+                        name: data.data.name,
+                        email: data.data.email,
+                        nik: data.data.nik,
+                        role: "ORTU",
+                        phone: data.data.phone
+                    };
+                    useAppStore.setState({ currentUser: ortuUser });
+                    success = true;
+                    user = ortuUser;
+                }
+            } catch (err) { }
+        }
+
+        if (!success) {
+            setError("Email / NIK atau password salah");
             setLoading(false);
             return;
         }
 
-        // Get user to redirect
-        const user = useAppStore.getState().currentUser;
         if (user) {
-            switch (user.role) {
-                case "ADMIN":
-                    router.push("/admin/dashboard");
-                    break;
-                case "GURU":
-                    router.push("/guru/dashboard");
-                    break;
-                case "ORTU":
-                    router.push("/ortu/dashboard");
-                    break;
-            }
+            router.push("/select-year");
         }
         setLoading(false);
     }
@@ -66,8 +80,8 @@ export default function LoginPage() {
 
             <Card className="w-full max-w-md border-slate-200 bg-white shadow-xl shadow-blue-900/5 relative z-10 transition-all duration-300">
                 <CardHeader className="text-center space-y-4 pb-4">
-                    <div className="mx-auto w-16 h-16 bg-[#000080] rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/20">
-                        <GraduationCap className="w-8 h-8 text-white" />
+                    <div className="mx-auto w-20 h-20 bg-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-900/10 border border-slate-50 p-1.5">
+                        <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
                     </div>
                     <div>
                         <CardTitle className="text-2xl font-extrabold text-[#000080] tracking-tight">
@@ -88,12 +102,12 @@ export default function LoginPage() {
 
                         <div className="space-y-2">
                             <Label htmlFor="email" className="text-slate-700 text-sm font-semibold ml-1">
-                                Email Sekolah
+                                Email Sekolah / NIK Ortu
                             </Label>
                             <Input
                                 id="email"
-                                type="email"
-                                placeholder="name@sekolah.id"
+                                type="text"
+                                placeholder="name@sekolah.id atau 16 Digit NIK"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
@@ -146,10 +160,12 @@ export default function LoginPage() {
                         <p className="text-xs text-slate-400 text-center font-medium mb-4 uppercase tracking-wider">
                             Akun Demo (Akses Cepat)
                         </p>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                             {[
-                                { label: "Admin", email: "admin@sekolah.id" },
-                                { label: "Guru", email: "budi@sekolah.id" },
+                                { label: "Kepala Sekolah", email: "guru1@sekolah.id" },
+                                { label: "Admin TU", email: "admin.tu@sekolah.id" },
+                                { label: "Admin IT", email: "guru13@sekolah.id" },
+                                { label: "Guru", email: "guru2@sekolah.id" },
                                 { label: "Ortu", email: "hasan@gmail.com" },
                             ].map((cred) => (
                                 <button

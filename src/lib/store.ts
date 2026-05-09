@@ -4,7 +4,7 @@ import { create } from "zustand";
 // TYPES
 // ==================
 
-export type Role = "ADMIN" | "GURU" | "ORTU";
+export type Role = "ADMIN" | "ADMIN_IT" | "ADMIN_TU" | "GURU" | "ORTU";
 export type AttendanceStatus = "HADIR" | "IZIN" | "SAKIT" | "ALPHA" | "TERLAMBAT" | "KEPERLUAN_SEKOLAH";
 export type LeaveType = "IZIN" | "SAKIT";
 export type LeaveStatus = "PENDING" | "APPROVED" | "REJECTED";
@@ -15,6 +15,11 @@ export interface User {
     email: string;
     role: Role;
     phone: string;
+    nik?: string;          // NIK untuk Orang Tua
+    teacherCode?: string;    // Kode guru sesuai jadwal yang diberikan
+    homebaseRoomId?: string; // Ruangan tetap untuk mengajar
+    isBK?: boolean;          // Tanda khusus jika guru BK / Piket
+    waliKelasRombelId?: string; // Menjadi wali kelas di Rombel apa
 }
 
 export interface Student {
@@ -23,11 +28,19 @@ export interface Student {
     name: string;
     gender: "L" | "P";
     className: string;
-    classId: string;
+    rombelId: string;
     photoUrl?: string; // New
 }
 
-export interface ClassInfo {
+export interface Room {
+    id: string;
+    code: string;
+    name: string;
+    location: string;
+    pic?: string;
+}
+
+export interface Rombel {
     id: string;
     name: string;
     grade: number;
@@ -37,15 +50,18 @@ export interface Subject {
     id: string;
     name: string;
     code: string;
+    grade?: number;           // Tingkat kelas (misal 7, 8, atau 9)
+    targetHoursPerWeek?: number; // Beban Jam / Target Jam per Minggu
 }
 
 export interface Schedule {
     id: string;
-    classId: string;
+    rombelId: string;
     className: string;
     subjectId: string;
     subjectName: string;
     teacherId: string;
+    roomId?: string; // Menyambungkan ke ID Ruangan
     dayOfWeek: number;
     startTime: string;
     endTime: string;
@@ -91,66 +107,57 @@ export interface LeaveRequest {
     createdAt: string;
 }
 
-export interface WhatsAppLog {
-    id: string;
-    phone: string;
-    message: string;
-    status: "sent" | "failed";
-    timestamp: string;
-}
-
 // ==================
 // MOCK DATA
 // ==================
 
 const USERS: User[] = [
-    { id: "u1", name: "Admin Sekolah", email: "admin@sekolah.id", role: "ADMIN", phone: "081234567890" },
-    { id: "u2", name: "Budi Santoso, S.Pd.", email: "budi@sekolah.id", role: "GURU", phone: "081234567891" },
-    { id: "u3", name: "Siti Rahayu, S.Pd.", email: "siti@sekolah.id", role: "GURU", phone: "081234567892" },
-    { id: "u4", name: "Hasan Fauzi", email: "hasan@gmail.com", role: "ORTU", phone: "081300000001" },
-    { id: "u5", name: "Sri Lestari", email: "sri@gmail.com", role: "ORTU", phone: "081300000002" },
+    { id: "u33", teacherCode: "1", name: "Veronika Suhartati, S.Psi.,M.M", email: "guru1@sekolah.id", role: "ADMIN", phone: "-" },
+    { id: "u60", teacherCode: "13", name: "Waskitha Wijaya, M.Kom", email: "guru13@sekolah.id", role: "ADMIN_IT", phone: "-" },
+    { id: "u34", teacherCode: "2", name: "Antonetta Maria Kuntodiati, S.Pd.", email: "guru2@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u35", teacherCode: "3", name: "Dra. Maria Marsiti", email: "guru3@sekolah.id", role: "GURU", phone: "089768282828" },
+    { id: "u36", teacherCode: "4", name: "Trianto Thomas, S.Pd.", email: "guru4@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u37", teacherCode: "5", name: "Agustina Peni Sarasati, S.Pd.", email: "guru5@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u38", teacherCode: "6", name: "Y. Pamungkas, S.Pd.", email: "guru6@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u39", teacherCode: "7", name: "Joseph Andiek Kristian, S.Pd.,S.Kom.", email: "guru7@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u40", teacherCode: "8", name: "Albertha Yulanti Susetyo, M.Pd.", email: "guru8@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u41", teacherCode: "9", name: "Galang Bagus Afridianto, M.Pd.", email: "guru9@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u42", teacherCode: "10", name: "Hendrik Kiswanto, S.Pd.", email: "guru10@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u43", teacherCode: "11", name: "Margareta Esti Wulan, S.Pd.", email: "guru11@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u44", teacherCode: "12", name: "Theresia Sri Wahyuni, S.Pd., M.M.", email: "guru12@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u45", teacherCode: "14", name: "Yosua Beni Setiawan, S.Pd.", email: "guru14@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u46", teacherCode: "15", name: "God Life Endob Mesak, S.Pd.", email: "guru15@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u47", teacherCode: "16", name: "Agnes Herawaty, S.E.MM", email: "guru16@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u48", teacherCode: "17", name: "Deka Nanda Kurniawati, S.Pd.", email: "guru17@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u49", teacherCode: "18", name: "Agatha Novenia Bintang Prieska, S.Pd.", email: "guru18@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u50", teacherCode: "19", name: "Bernadetha Devia Tindy Noveyra, S.Pd.", email: "guru19@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u51", teacherCode: "20", name: "Drs. Albertus Magnus Meo Depa", email: "guru20@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u52", teacherCode: "21", name: "Giovani Bimby Dwiantonio, S.Pd.", email: "guru21@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u53", teacherCode: "22", name: "Arnoldus Kobe Tegar Felix Sai, S.Pd.", email: "guru22@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u54", teacherCode: "23", name: "Haniar Mey Sila Kinanti, S.Pd.", email: "guru23@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u55", teacherCode: "24", name: "Anjelina Wulandari Sitina De Sareng, S.Pd.", email: "guru24@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u56", teacherCode: "25", name: "Lydia Uli Permatasari, S.Pd.", email: "guru25@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u57", teacherCode: "26", name: "Albertus Bayu Seta, S.Pd.", email: "guru26@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u58", teacherCode: "27", name: "Brigita Natalia Setyaningrum, S.Pd.", email: "guru27@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u59", teacherCode: "28", name: "Amelia Rangel Da Silva", email: "guru28@sekolah.id", role: "GURU", phone: "-" },
+    { id: "u61", teacherCode: "TU-01", name: "Admin Tata Usaha", email: "admin.tu@sekolah.id", role: "ADMIN_TU", phone: "-" },
+    { id: "u32", name: "Hasan Fauzi", nik: "1234567890", email: "hasan@gmail.com", role: "ORTU", phone: "081300000001" },
 ];
 
-const CLASSES: ClassInfo[] = [
-    { id: "c1", name: "X-IPA-1", grade: 10 },
-    { id: "c2", name: "X-IPA-2", grade: 10 },
-    { id: "c3", name: "XI-IPA-1", grade: 11 },
-];
+const ROOMS: Room[] = [];
 
-const SUBJECTS: Subject[] = [
-    { id: "s1", name: "Matematika", code: "MTK" },
-    { id: "s2", name: "Bahasa Indonesia", code: "BIN" },
-    { id: "s3", name: "Fisika", code: "FIS" },
-    { id: "s4", name: "Bahasa Inggris", code: "BIG" },
-];
+const ROMBELS: Rombel[] = [];
 
-const STUDENTS: Student[] = [
-    { id: "st1", nis: "2024001", name: "Ahmad Fauzi", gender: "L", className: "X-IPA-1", classId: "c1", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Ahmad" },
-    { id: "st2", nis: "2024002", name: "Dewi Lestari", gender: "P", className: "X-IPA-1", classId: "c1", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Dewi" },
-    { id: "st3", nis: "2024003", name: "Rizky Pratama", gender: "L", className: "X-IPA-1", classId: "c1", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rizky" },
-    { id: "st4", nis: "2024004", name: "Putri Maharani", gender: "P", className: "X-IPA-1", classId: "c1", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Putri" },
-    { id: "st5", nis: "2024005", name: "Fajar Nugroho", gender: "L", className: "X-IPA-1", classId: "c1", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Fajar" },
-    { id: "st6", nis: "2024006", name: "Sari Wulandari", gender: "P", className: "X-IPA-2", classId: "c2", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Sari" },
-    { id: "st7", nis: "2024007", name: "Dimas Ardiansyah", gender: "L", className: "X-IPA-2", classId: "c2", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Dimas" },
-    { id: "st8", nis: "2024008", name: "Rina Fitriani", gender: "P", className: "X-IPA-2", classId: "c2", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Rina" },
-    { id: "st9", nis: "2024009", name: "Andi Setiawan", gender: "L", className: "X-IPA-2", classId: "c2", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Andi" },
-    { id: "st10", nis: "2024010", name: "Maya Sari", gender: "P", className: "XI-IPA-1", classId: "c3", photoUrl: "https://api.dicebear.com/7.x/avataaars/svg?seed=Maya" },
-];
+const SUBJECTS: Subject[] = [];
 
-const SCHEDULES: Schedule[] = [
-    { id: "sch1", classId: "c1", className: "X-IPA-1", subjectId: "s1", subjectName: "Matematika", teacherId: "u2", dayOfWeek: 1, startTime: "07:00", endTime: "08:30" },
-    { id: "sch2", classId: "c1", className: "X-IPA-1", subjectId: "s2", subjectName: "Bahasa Indonesia", teacherId: "u2", dayOfWeek: 1, startTime: "08:30", endTime: "10:00" },
-    { id: "sch3", classId: "c1", className: "X-IPA-1", subjectId: "s3", subjectName: "Fisika", teacherId: "u2", dayOfWeek: 2, startTime: "07:00", endTime: "08:30" },
-    { id: "sch4", classId: "c1", className: "X-IPA-1", subjectId: "s4", subjectName: "Bahasa Inggris", teacherId: "u3", dayOfWeek: 2, startTime: "08:30", endTime: "10:00" },
-    { id: "sch5", classId: "c2", className: "X-IPA-2", subjectId: "s3", subjectName: "Fisika", teacherId: "u2", dayOfWeek: 1, startTime: "10:15", endTime: "11:45" },
-    { id: "sch6", classId: "c2", className: "X-IPA-2", subjectId: "s1", subjectName: "Matematika", teacherId: "u3", dayOfWeek: 3, startTime: "07:00", endTime: "08:30" },
-    { id: "sch7", classId: "c3", className: "XI-IPA-1", subjectId: "s1", subjectName: "Matematika", teacherId: "u2", dayOfWeek: 3, startTime: "08:30", endTime: "10:00" },
-];
+const STUDENTS: Student[] = [];
 
-// Parent-Student mapping: u4 -> st1, u5 -> st2
+const SCHEDULES: Schedule[] = [];
+
+// Parent-Student mapping: u32 -> st1, u33 -> st2
 const PARENT_CHILDREN: Record<string, string[]> = {
-    u4: ["st1"],
-    u5: ["st2"],
+    u32: ["st1"],
+    u33: ["st2"],
 };
 
 // ==================
@@ -165,7 +172,8 @@ interface AppState {
 
     // Data
     users: User[];
-    classes: ClassInfo[];
+    rooms: Room[];
+    rombels: Rombel[];
     subjects: Subject[];
     students: Student[];
     schedules: Schedule[];
@@ -179,27 +187,52 @@ interface AppState {
     submitLeaveRequest: (req: Omit<LeaveRequest, "id" | "status" | "createdAt" | "reviewedBy" | "reviewNotes">) => void;
     reviewLeaveRequest: (id: string, status: "APPROVED" | "REJECTED", reviewNotes: string) => void;
 
-    // WhatsApp logs
-    waLogs: WhatsAppLog[];
+
 
     // Class Sessions (Journal)
     classSessions: ClassSession[];
     saveClassSession: (session: Omit<ClassSession, "id">) => void;
     getClassSession: (scheduleId: string, date: string) => ClassSession | undefined;
 
+    // Tahun Ajaran
+    selectedTahunAjaran: string | null;
+    setSelectedTahunAjaran: (tahun: string) => void;
+
+    // Ortu Selection
+    selectedChildId: string | null;
+    setSelectedChildId: (id: string | null) => void;
+
     // Helpers
-    getStudentsByClass: (classId: string) => Student[];
+    getStudentsByRombel: (rombelId: string) => Student[];
     getSchedulesByTeacher: (teacherId: string) => Schedule[];
-    getClassesByTeacher: (teacherId: string) => ClassInfo[];
+    getRombelsByTeacher: (teacherId: string) => Rombel[];
     getChildrenByParent: (parentId: string) => Student[];
     getAttendanceByStudent: (studentId: string) => AttendanceRecord[];
     getLeaveRequestsByParent: (parentId: string) => LeaveRequest[];
     getPendingLeaveRequests: () => LeaveRequest[];
+
+    // Jadwal / Scheduling Engine
+    checkScheduleConflict: (newSchedule: Partial<Schedule>) => { conflict: boolean; reason?: string };
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
     // Auth
     currentUser: null,
+    selectedTahunAjaran: typeof window !== "undefined" ? localStorage.getItem("selectedTahunAjaran") : null,
+    setSelectedTahunAjaran: (tahun) => {
+        set({ selectedTahunAjaran: tahun });
+        if (typeof window !== "undefined") {
+            localStorage.setItem("selectedTahunAjaran", tahun);
+        }
+    },
+    selectedChildId: typeof window !== "undefined" ? localStorage.getItem("selectedChildId") : null,
+    setSelectedChildId: (id) => {
+        set({ selectedChildId: id });
+        if (typeof window !== "undefined") {
+            if (id) localStorage.setItem("selectedChildId", id);
+            else localStorage.removeItem("selectedChildId");
+        }
+    },
     login: (email: string, password: string) => {
         if (password !== "password123") return false;
         const user = USERS.find((u) => u.email === email);
@@ -211,7 +244,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     // Data
     users: USERS,
-    classes: CLASSES,
+    rooms: ROOMS,
+    rombels: ROMBELS,
     subjects: SUBJECTS,
     students: STUDENTS,
     schedules: SCHEDULES,
@@ -234,18 +268,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             return { attendanceRecords: [...filtered, ...newRecords] };
         });
 
-        // Simulate WA notification for non-hadir
-        const nonHadir = newRecords.filter((r) => r.status !== "HADIR");
-        if (nonHadir.length > 0) {
-            const logs: WhatsAppLog[] = nonHadir.map((r) => ({
-                id: `wa-${Date.now()}-${r.studentId}`,
-                phone: "0813xxxxxxxx",
-                message: `🏫 *Notifikasi Presensi*\n\nAnak Anda *${r.studentName}* tercatat *${r.status}* pada ${r.subjectName} (${r.className}) tanggal ${r.date}.`,
-                status: "sent" as const,
-                timestamp: new Date().toISOString(),
-            }));
-            set((state) => ({ waLogs: [...state.waLogs, ...logs] }));
-        }
+
     },
 
     // Class Sessions (Journal)
@@ -271,41 +294,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     },
 
     // Leave Requests
-    leaveRequests: [
-        {
-            id: "lr-1",
-            studentId: "st1",
-            studentName: "Ahmad Fauzi",
-            studentNis: "2024001",
-            parentId: "u4",
-            parentName: "Hasan Fauzi",
-            parentPhone: "081300000001",
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date().toISOString().split('T')[0],
-            type: "SAKIT",
-            reason: "Sakit demam dan batuk sejak semalam.",
-            selfieUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=Ahmad",
-            attachmentUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=Dokter",
-            status: "PENDING",
-            createdAt: new Date().toISOString(),
-        },
-        {
-            id: "lr-2",
-            studentId: "st3",
-            studentName: "Rizky Pratama",
-            studentNis: "2024003",
-            parentId: "u10",
-            parentName: "Bpk. Pratama",
-            parentPhone: "081500000002",
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date().toISOString().split('T')[0],
-            type: "IZIN",
-            reason: "Menghadiri acara keluarga di luar kota.",
-            selfieUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=Rizky",
-            status: "PENDING",
-            createdAt: new Date().toISOString(),
-        }
-    ],
+    leaveRequests: [],
     submitLeaveRequest: (req) => {
         const newReq: LeaveRequest = {
             ...req,
@@ -315,19 +304,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         };
         set((state) => ({ leaveRequests: [newReq, ...state.leaveRequests] }));
 
-        // Simulate WA confirmation
-        set((state) => ({
-            waLogs: [
-                ...state.waLogs,
-                {
-                    id: `wa-${Date.now()}`,
-                    phone: req.parentPhone,
-                    message: `✅ Pengajuan izin untuk *${req.studentName}* (${req.type}) pada ${req.startDate} s/d ${req.endDate} telah diterima. Menunggu persetujuan guru.`,
-                    status: "sent" as const,
-                    timestamp: new Date().toISOString(),
-                },
-            ],
-        }));
+
     },
     reviewLeaveRequest: (id, status, reviewNotes) => {
         const state = get();
@@ -345,27 +322,15 @@ export const useAppStore = create<AppState>((set, get) => ({
             ),
         }));
 
-        // Simulate WA notification and auto-attendance
+
+
+
         const lr = state.leaveRequests.find((l) => l.id === id);
         if (lr) {
-            const statusText = status === "APPROVED" ? "Disetujui ✅" : "Ditolak ❌";
-            set((state) => ({
-                waLogs: [
-                    ...state.waLogs,
-                    {
-                        id: `wa-${Date.now()}`,
-                        phone: lr.parentPhone,
-                        message: `Pengajuan izin untuk *${lr.studentName}* pada ${lr.startDate} s/d ${lr.endDate} telah *${statusText}*.`,
-                        status: "sent" as const,
-                        timestamp: new Date().toISOString(),
-                    },
-                ],
-            }));
-
             // Auto insert attendance records if APPROVED
             if (status === "APPROVED") {
                 const studentSchedules = state.schedules.filter(s =>
-                    state.students.find(st => st.id === lr.studentId)?.classId === s.classId
+                    state.students.find(st => st.id === lr.studentId)?.rombelId === s.rombelId
                 );
 
                 if (studentSchedules.length > 0) {
@@ -396,17 +361,16 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
     },
 
-    // WhatsApp
-    waLogs: [],
+
 
     // Helpers
-    getStudentsByClass: (classId) => STUDENTS.filter((s) => s.classId === classId),
+    getStudentsByRombel: (rombelId) => STUDENTS.filter((s) => s.rombelId === rombelId),
     getSchedulesByTeacher: (teacherId) => SCHEDULES.filter((s) => s.teacherId === teacherId),
-    getClassesByTeacher: (teacherId) => {
+    getRombelsByTeacher: (teacherId) => {
         const classIds = new Set(
-            SCHEDULES.filter((s) => s.teacherId === teacherId).map((s) => s.classId)
+            SCHEDULES.filter((s) => s.teacherId === teacherId).map((s) => s.rombelId)
         );
-        return CLASSES.filter((c) => classIds.has(c.id));
+        return ROMBELS.filter((c) => classIds.has(c.id));
     },
     getChildrenByParent: (parentId) => {
         const childIds = PARENT_CHILDREN[parentId] || [];
@@ -415,9 +379,45 @@ export const useAppStore = create<AppState>((set, get) => ({
     getAttendanceByStudent: (studentId) =>
         get().attendanceRecords.filter((a) => a.studentId === studentId),
     getLeaveRequestsByParent: (parentId) => {
-        const childIds = PARENT_CHILDREN[parentId] || [];
-        return get().leaveRequests.filter((lr) => childIds.includes(lr.studentId));
+        const studentIds = get().getChildrenByParent(parentId).map((s) => s.id);
+        return get().leaveRequests.filter((lr) => studentIds.includes(lr.studentId));
     },
     getPendingLeaveRequests: () =>
         get().leaveRequests.filter((lr) => lr.status === "PENDING"),
+
+    checkScheduleConflict: (newSchedule) => {
+        const { teacherId, rombelId, roomId, dayOfWeek, startTime, endTime } = newSchedule;
+        if (!dayOfWeek || !startTime || !endTime) return { conflict: false };
+
+        const isTimeOverlap = (start1: string, end1: string, start2: string, end2: string) => {
+            // Sederhananya dengan membandingkan jam/menit (format HH:mm)
+            return (start1 < end2 && end1 > start2);
+        };
+
+        const existingSchedules = get().schedules.filter(s => s.dayOfWeek === dayOfWeek && s.id !== newSchedule.id);
+
+        for (const s of existingSchedules) {
+            if (isTimeOverlap(startTime, endTime, s.startTime, s.endTime)) {
+
+                // 1. Cek Konflik Guru (Guru yang sama tidak boleh mengajar dua rombel bersamaan)
+                if (teacherId && s.teacherId === teacherId) {
+                    const guru = get().users.find(u => u.id === teacherId);
+                    return { conflict: true, reason: `Tabrakan Jadwal Guru: ${guru?.name} sudah memiliki jadwal mengajar di Rombel ${s.className} pada jam tersebut.` };
+                }
+
+                // 2. Cek Konflik Rombel (Satu rombel tidak boleh memiliki 2 mapel bersamaan)
+                if (rombelId && s.rombelId === rombelId) {
+                    return { conflict: true, reason: `Tabrakan Jadwal Kelas: Rombel ${s.className} sedah memiliki pelajaraan ${s.subjectName} pada jam tersebut.` };
+                }
+
+                // 3. Cek Konflik Ruangan (Moving class)
+                if (roomId && s.roomId && s.roomId === roomId) {
+                    const ruang = get().rooms.find(r => r.id === roomId);
+                    return { conflict: true, reason: `Tabrakan Ruangan: Ruangan ${ruang?.name} sedang digunakan oleh Rombel ${s.className} untuk mapel ${s.subjectName}.` };
+                }
+            }
+        }
+        return { conflict: false };
+    }
 }));
+

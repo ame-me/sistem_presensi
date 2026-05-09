@@ -4,6 +4,13 @@ import { useState } from "react";
 import * as xlsx from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
+import { useKelasData } from "@/hooks/useKelasData";
+import { useSiswaData } from "@/hooks/useSiswaData";
+import { useGuruData } from "@/hooks/useGuruData";
+import { useRuanganData } from "@/hooks/useRuanganData";
+import { useAttendanceData } from "@/hooks/useAttendanceData";
+import { useJadwalData } from "@/hooks/useJadwalData";
+import { useJurnalData } from "@/hooks/useJurnalData";
 import {
     Card,
     CardContent,
@@ -46,70 +53,92 @@ import {
     PenSquare,
     Trash2,
     Plus,
-    Upload,
     FileSpreadsheet,
-    MessageCircle,
     Eye,
     CheckCircle2,
     AlertCircle,
-    ArrowRight,
-    Award,
-    GraduationCap,
+    AlertTriangle,
     Loader2
 } from "lucide-react";
+import { useAppStore } from "@/lib/store";
 
-const INITIAL_CLASSES = [
-    { id: "c1", grade: "7", name: "7A", teacher: "Budi Santoso", count: 32, status: "Aman" },
-    { id: "c2", grade: "7", name: "7B", teacher: "Siti Rahayu", count: 31, status: "Warning" },
-    { id: "c3", grade: "8", name: "8A", teacher: "Ahmad Fauzi", count: 30, status: "Aman" },
-    { id: "c4", grade: "9", name: "9A", teacher: "Dewi Lestari", count: 29, status: "Aman" },
-];
+const DAY_NAMES = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
+
+const INITIAL_CLASSES: any[] = [];
 
 export default function AdminKelasPage() {
-    const [classes, setClasses] = useState(INITIAL_CLASSES);
+    const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
+    const { kelas: kelasData, refetch } = useKelasData();
+    const { siswa: siswaData } = useSiswaData();
+    const { guru: teachers, refetch: refetchTeachers } = useGuruData();
+    const { refetch: refetchRooms } = useRuanganData();
+
+    // Monitoring hooks
+    const today = new Date().toISOString().split("T")[0];
+    const todayDayName = DAY_NAMES[new Date().getDay()];
+    const { jadwal: allSchedules } = useJadwalData(todayDayName);
+    const { attendance: allAttendance } = useAttendanceData(today);
+    const { jurnal: allJournals } = useJurnalData(today);
+
     const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [editMode, setEditMode] = useState(false);
-    const [formData, setFormData] = useState({ id: "", grade: "7", name: "", teacher: "" });
+    const [formData, setFormData] = useState<any>({ id: "", grade: "VII", name: "", teacher: "", teacher_code: "" });
+    const [kelasDetail, setKelasDetail] = useState<any>(null);
 
-    // Kenaikan Kelas State
-    const [kenaikanFrom, setKenaikanFrom] = useState("");
-    const [kenaikanTo, setKenaikanTo] = useState("");
-    const [isPromoting, setIsPromoting] = useState(false);
 
-    const handleOpenDialog = (data = { id: "", grade: "7", name: "", teacher: "" }) => {
+
+    const handleOpenDialog = (data: any = { id: "", grade: "VII", name: "", teacher: "", teacher_code: "" }) => {
         setFormData(data);
         setEditMode(!!data.id);
         setIsDialogOpen(true);
     };
 
     const handleSaveClass = () => {
-        if (!formData.name || !formData.teacher) return toast.error("Isi semua data kelas");
+        if (!formData.name || !formData.grade) return toast.error("Isi semua data kelas");
 
-        if (editMode) {
-            setClasses(classes.map(c => c.id === formData.id ? { ...c, ...formData } : c));
-            toast.success("Kelas berhasil diperbarui");
-        } else {
-            const newClass = {
-                ...formData,
-                id: `c${Date.now()}`,
-                count: 0,
-                status: "Aman"
-            };
-            setClasses([...classes, newClass]);
-            toast.success("Kelas berhasil ditambahkan");
-        }
-        setIsDialogOpen(false);
+        setIsSaving(true);
+        const method = editMode ? "PUT" : "POST";
+        const payload = { ...formData, tahun_ajaran: selectedTahunAjaran };
+        fetch("http://127.0.0.1/presensipander/api/kelas/index.php", {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        }).then(res => res.json()).then(data => {
+            if(data.status === "success") {
+                toast.success(data.message);
+                refetch();
+                refetchTeachers();
+                refetchRooms();
+                setIsDialogOpen(false);
+            } else {
+                toast.error(data.message);
+            }
+        }).catch(err => toast.error("Gagal terhubung ke server."))
+          .finally(() => setIsSaving(false));
     };
 
-    const handleDeleteClass = (id: string, name: string) => {
+    const handleDeleteClass = (id: any, name: string) => {
         if (window.confirm(`Apakah Anda yakin ingin menghapus kelas ${name}?`)) {
-            setClasses(classes.filter(c => c.id !== id));
-            toast.success(`Kelas ${name} dihapus.`);
+            fetch("http://127.0.0.1/presensipander/api/kelas/index.php", {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id })
+            }).then(res => res.json()).then(data => {
+                if(data.status === "success") {
+                    toast.success(data.message);
+                    refetch();
+                    refetchTeachers();
+                    refetchRooms();
+                } else {
+                    toast.error(data.message);
+                }
+            }).catch(err => toast.error("Gagal terhubung ke server."));
         }
     };
 
     const handleExport = () => {
-        const worksheet = xlsx.utils.json_to_sheet(classes);
+        const worksheet = xlsx.utils.json_to_sheet(kelasData);
         const workbook = xlsx.utils.book_new();
         xlsx.utils.book_append_sheet(workbook, worksheet, "Data_Kelas");
         const excelBuffer = xlsx.write(workbook, { bookType: "xlsx", type: "array" });
@@ -118,26 +147,7 @@ export default function AdminKelasPage() {
         toast.success("Data berhasil diekspor");
     };
 
-    const handlePromotion = () => {
-        if (!kenaikanFrom || !kenaikanTo) return toast.error("Pilih kelas asal dan tujuan");
-        setIsPromoting(true);
-        setTimeout(() => {
-            setIsPromoting(false);
-            toast.success(`Berhasil memindahkan siswa dari ${kenaikanFrom.toUpperCase()} ke ${kenaikanTo.toUpperCase()}`);
-            setKenaikanFrom("");
-            setKenaikanTo("");
-        }, 1500);
-    };
 
-    const handleGraduation = () => {
-        if (window.confirm("Ini akan menonaktifkan seluruh siswa Kelas 9 menjadi Alumni. Lanjutkan?")) {
-            setIsPromoting(true);
-            setTimeout(() => {
-                setIsPromoting(false);
-                toast.success("Proses kelulusan selesai. Data siswa kelas 9 dipindahkan ke arsip alumni.");
-            }, 1500);
-        }
-    };
 
     return (
         <div className="space-y-8 font-sans pb-20">
@@ -170,15 +180,15 @@ export default function AdminKelasPage() {
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
                                 <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="level" className="text-right">Tingkat</Label>
+                                    <Label htmlFor="level" className="text-right">Tingkat/Grad</Label>
                                     <Select value={formData.grade} onValueChange={(v) => setFormData({ ...formData, grade: v })}>
                                         <SelectTrigger className="col-span-3">
-                                            <SelectValue placeholder="Pilih Tingkat" />
+                                            <SelectValue placeholder="Pilih Tingkat/Grad" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="7">Kelas 7</SelectItem>
-                                            <SelectItem value="8">Kelas 8</SelectItem>
-                                            <SelectItem value="9">Kelas 9</SelectItem>
+                                            <SelectItem value="VII">Kelas VII</SelectItem>
+                                            <SelectItem value="VIII">Kelas VIII</SelectItem>
+                                            <SelectItem value="IX">Kelas IX</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -188,21 +198,38 @@ export default function AdminKelasPage() {
                                 </div>
                                 <div className="grid grid-cols-4 items-center gap-4">
                                     <Label htmlFor="wali" className="text-right">Wali Kelas</Label>
-                                    <Select value={formData.teacher} onValueChange={(v) => setFormData({ ...formData, teacher: v })}>
+                                    <Select value={formData.teacher_code || "-"} onValueChange={(v) => {
+                                        const selectedTeacher = teachers.find(t => t.teacherCode === v);
+                                        setFormData({ 
+                                            ...formData, 
+                                            teacher_code: v, 
+                                            teacher: selectedTeacher ? selectedTeacher.name : "-" 
+                                        });
+                                    }}>
                                         <SelectTrigger className="col-span-3">
                                             <SelectValue placeholder="Pilih Guru" />
                                         </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Budi Santoso">Budi Santoso</SelectItem>
-                                            <SelectItem value="Siti Rahayu">Siti Rahayu</SelectItem>
-                                            <SelectItem value="Ahmad Fauzi">Ahmad Fauzi</SelectItem>
-                                            <SelectItem value="Dewi Lestari">Dewi Lestari</SelectItem>
+                                        <SelectContent className="max-h-[200px] overflow-y-auto">
+                                            <SelectItem value="-">Tidak ada (-) </SelectItem>
+                                            {teachers.map((t) => {
+                                                const isTaken = !!(t.wali_kelas && t.wali_kelas !== "-" && t.wali_kelas !== "" && t.wali_kelas !== formData.name);
+                                                return (
+                                                    <SelectItem key={t.id} value={t.teacherCode} disabled={isTaken}>
+                                                        <div className="flex justify-between items-center w-full gap-4">
+                                                            <span>{t.name}</span>
+                                                            {isTaken && <span className="text-[10px] bg-red-50 text-red-500 px-2 py-0.5 rounded border border-red-100 italic">Terisi: {t.wali_kelas}</span>}
+                                                        </div>
+                                                    </SelectItem>
+                                                );
+                                            })}
                                         </SelectContent>
                                     </Select>
                                 </div>
                             </div>
                             <DialogFooter>
-                                <Button onClick={handleSaveClass} className="bg-[#000080] text-white py-2">Simpan</Button>
+                                <Button onClick={handleSaveClass} disabled={isSaving} className="bg-[#000080] text-white py-2">
+                                    {isSaving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : "Simpan"}
+                                </Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
@@ -219,10 +246,6 @@ export default function AdminKelasPage() {
                         <Eye className="w-4 h-4 mr-2" />
                         Monitoring (Real-Time)
                     </TabsTrigger>
-                    <TabsTrigger value="promotion" className="hidden md:flex data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-6 font-bold h-10">
-                        <Award className="w-4 h-4 mr-2" />
-                        Kenaikan Kelas
-                    </TabsTrigger>
                 </TabsList>
 
                 {/* TAB 1: DAFTAR KELAS & SISWA */}
@@ -236,16 +259,15 @@ export default function AdminKelasPage() {
                             <Table>
                                 <TableHeader className="bg-slate-50">
                                     <TableRow>
-                                        <TableHead className="font-bold text-[#000080]">Tingkat</TableHead>
-                                        <TableHead className="font-bold text-[#000080]">Nama Kelas</TableHead>
-                                        <TableHead className="font-bold text-[#000080]">Wali Kelas</TableHead>
-                                        <TableHead className="font-bold text-[#000080] text-center">Jumlah Siswa</TableHead>
-                                        <TableHead className="font-bold text-[#000080]">Status Hari Ini</TableHead>
-                                        <TableHead className="font-bold text-[#000080] text-right">Aksi</TableHead>
+                                        <TableHead className="w-[20%] font-bold text-[#000080]">Tingkat/Grad</TableHead>
+                                        <TableHead className="w-[15%] font-bold text-[#000080]">Nama Kelas</TableHead>
+                                        <TableHead className="w-[35%] font-bold text-[#000080]">Wali Kelas</TableHead>
+                                        <TableHead className="w-[15%] font-bold text-[#000080] text-center">Jumlah Siswa</TableHead>
+                                        <TableHead className="w-[15%] font-bold text-[#000080] text-right">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {classes.map((cls) => (
+                                    {kelasData.map((cls) => (
                                         <TableRow key={cls.id} className="hover:bg-slate-50/50">
                                             <TableCell className="font-medium text-slate-700">Kelas {cls.grade}</TableCell>
                                             <TableCell className="font-bold text-slate-800 text-base">{cls.name}</TableCell>
@@ -257,24 +279,16 @@ export default function AdminKelasPage() {
                                                     <span className="text-slate-600 font-medium">{cls.teacher}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-center font-bold text-slate-700">{cls.count}</TableCell>
-                                            <TableCell>
-                                                {cls.status === "Aman" ? (
-                                                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200 shadow-none">
-                                                        <CheckCircle2 className="w-3 h-3 mr-1" /> Lengkap
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200 shadow-none">
-                                                        <AlertCircle className="w-3 h-3 mr-1" /> Belum Absen
-                                                    </Badge>
-                                                )}
-                                            </TableCell>
+                                            <TableCell className="text-center font-bold text-slate-700">{siswaData?.filter(s => s.cls === cls.name).length || 0}</TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-2">
-                                                    <Button onClick={() => handleOpenDialog(cls)} size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">
+                                                    <Button onClick={() => setKelasDetail(cls)} size="icon" variant="ghost" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50" title="Lihat Daftar Siswa">
+                                                        <Users className="w-4 h-4" />
+                                                    </Button>
+                                                    <Button onClick={() => handleOpenDialog(cls)} size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" title="Edit Kelas">
                                                         <PenSquare className="w-4 h-4" />
                                                     </Button>
-                                                    <Button onClick={() => handleDeleteClass(cls.id, cls.name)} size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50">
+                                                    <Button onClick={() => handleDeleteClass(cls.id, cls.name)} size="icon" variant="ghost" className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50" title="Hapus Kelas">
                                                         <Trash2 className="w-4 h-4" />
                                                     </Button>
                                                 </div>
@@ -285,151 +299,187 @@ export default function AdminKelasPage() {
                             </Table>
                         </CardContent>
                     </Card>
+
+                    {/* Modal Daftar Siswa per Kelas */}
+                    <Dialog open={!!kelasDetail} onOpenChange={(open) => !open && setKelasDetail(null)}>
+                        <DialogContent className="sm:max-w-[700px]">
+                            <DialogHeader>
+                                <DialogTitle className="text-xl font-bold text-[#000080]">Daftar Siswa - Kelas {kelasDetail?.name}</DialogTitle>
+                                <DialogDescription>
+                                    Susunan daftar siswa pada kelas {kelasDetail?.name}.
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="overflow-x-auto mt-4 border border-slate-200">
+                                <table className="w-full border-collapse text-sm">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200">
+                                            <th className="py-2 px-3 border-r border-slate-200 font-semibold text-[#0070c0] w-[50px] text-center">No</th>
+                                            <th className="py-2 px-3 border-r border-slate-200 font-semibold text-[#0070c0] text-center">No Induk</th>
+                                            <th className="py-2 px-3 border-r border-slate-200 font-semibold text-[#0070c0] text-center">Jenis Kelamin</th>
+                                            <th className="py-2 px-3 font-semibold text-[#0070c0] text-left">Nama Siswa</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {siswaData?.filter(s => s.cls === kelasDetail?.name).map((s: any, idx: any) => (
+                                            <tr key={idx} className="border-b border-slate-200 hover:bg-slate-50">
+                                                <td className="py-2 px-3 border-r border-slate-200 text-center">{idx + 1}</td>
+                                                <td className="py-2 px-3 border-r border-slate-200 text-center">{s.noInduk}</td>
+                                                <td className="py-2 px-3 border-r border-slate-200 text-center">{s.gender}</td>
+                                                <td className="py-2 px-3">{s.name}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                 </TabsContent>
 
-                {/* TAB 2: MONITORING HARI INI */}
+                {/* TAB 2: MONITORING HARI INI (REAL-TIME) */}
                 <TabsContent value="monitor" className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <Card className="bg-white border-slate-200 shadow-sm rounded-xl">
-                            <CardContent className="p-4 flex items-center gap-4">
-                                <div className="p-3 bg-emerald-100 text-emerald-600 rounded-lg">
-                                    <CheckCircle2 className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Sudah Presensi</p>
-                                    <p className="text-2xl font-black text-slate-800">12 <span className="text-sm font-medium text-slate-400">/ 15 Kelas</span></p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                        <Card className="bg-white border-slate-200 shadow-sm rounded-xl">
-                            <CardContent className="p-4 flex items-center gap-4">
-                                <div className="p-3 bg-red-100 text-red-600 rounded-lg">
-                                    <AlertCircle className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Belum Presensi</p>
-                                    <p className="text-2xl font-black text-slate-800">3 <span className="text-sm font-medium text-slate-400">Kelas</span></p>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                    {(() => {
+                        const now = new Date();
+                        const currentTime = now.getHours().toString().padStart(2, '0') + "." + now.getMinutes().toString().padStart(2, '0');
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {[
-                            { name: "7A", mapel: "Matematika", guru: "Budi Santoso", status: "DONE", time: "07:00 - 08:30" },
-                            { name: "7B", mapel: "B. Inggris", guru: "Siti Rahayu", status: "PENDING", time: "07:00 - 08:30" }
-                        ].map((cls, idx) => (
-                            <Card key={idx} className={`border-l-4 shadow-sm rounded-xl overflow-hidden ${cls.status === "DONE" ? "border-l-emerald-500" : "border-l-red-500"}`}>
-                                <CardHeader className="bg-white border-b border-slate-100 p-4 flex flex-row justify-between items-start">
-                                    <div>
-                                        <CardTitle className="text-lg font-black text-slate-800">{cls.name}</CardTitle>
-                                        <p className="text-xs font-bold text-slate-500 mt-1 flex items-center gap-1">
-                                            <Users className="w-3 h-3" /> 32 Siswa
-                                        </p>
-                                    </div>
-                                    <Badge className={`${cls.status === "DONE" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"} border-0 shadow-none`}>
-                                        {cls.status === "DONE" ? "Selesai" : "Belum Absen"}
-                                    </Badge>
-                                </CardHeader>
-                                <CardContent className="p-4 space-y-3 bg-slate-50/50">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-500 font-medium">Mapel:</span>
-                                        <span className="font-bold text-slate-800">{cls.mapel}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-500 font-medium">Guru:</span>
-                                        <span className="font-bold text-slate-800">{cls.guru}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-500 font-medium">Jam:</span>
-                                        <span className="font-mono text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 text-xs">{cls.time}</span>
-                                    </div>
+                        // For each class, find the current or latest schedule slot that has started
+                        const monitorData = kelasData.map(cls => {
+                            const classSchedules = allSchedules
+                                .filter(s => s.class_name === cls.name)
+                                .sort((a, b) => a.time_range.localeCompare(b.time_range));
 
-                                    {cls.status === "DONE" && (
-                                        <div className="pt-2 border-t border-slate-200 mt-2">
-                                            <p className="text-[10px] text-slate-400 font-bold mb-2 uppercase tracking-wide">Jurnal Guru:</p>
-                                            <p className="text-xs text-slate-600 italic line-clamp-2">"Membahas Bab 4 tentang Aljabar Linear."</p>
-                                        </div>
-                                    )}
+                            // Find slot where current time is >= start time
+                            const activeSlot = classSchedules
+                                .filter(s => {
+                                    const startTime = s.time_range.split(' - ')[0];
+                                    return startTime <= currentTime;
+                                })
+                                .reverse()[0] || classSchedules[0]; // Take the latest started, or the first if none started
 
-                                    {cls.status === "PENDING" && (
-                                        <div className="pt-4">
-                                            <Button onClick={() => toast.success(`Pesan peringatan telah dikirim ke WhatsApp ${cls.guru}.`)} size="sm" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-8 text-xs shadow-red-200 shadow-md">
-                                                <MessageCircle className="w-3 h-3 mr-1" /> Ingatkan Guru
-                                            </Button>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-                        ))}
-                    </div>
+                            if (!activeSlot) return null;
+
+                            const attendanceRecords = allAttendance.filter(a => a.schedule_id?.toString() === activeSlot.id?.toString());
+                            const journal = allJournals.find(j => j.schedule_id?.toString() === activeSlot.id?.toString());
+                            const isDone = attendanceRecords.length > 0;
+
+                            return {
+                                name: cls.name,
+                                siswaCount: siswaData?.filter(s => s.cls === cls.name).length || 0,
+                                mapel: activeSlot.subject_hint || activeSlot.teacher_mapel?.split(' (')[0] || "Mata Pelajaran",
+                                guru: activeSlot.teacher_name || "Guru Pengampu",
+                                status: isDone ? "DONE" : "PENDING",
+                                time: activeSlot.time_range,
+                                journal: journal?.topic || null
+                            };
+                        }).filter(Boolean);
+
+                        const countDone = monitorData.filter(m => m?.status === "DONE").length;
+                        const countPending = monitorData.filter(m => m?.status === "PENDING").length;
+
+                        return (
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <Card className="bg-white border-slate-200 shadow-sm rounded-xl">
+                                        <CardContent className="p-4 flex items-center gap-4">
+                                            <div className="p-3 bg-emerald-100 text-emerald-600 rounded-lg">
+                                                <CheckCircle2 className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Sudah Presensi</p>
+                                                <p className="text-2xl font-black text-slate-800">
+                                                    {countDone} <span className="text-sm font-medium text-slate-400">/ {monitorData.length} Kelas</span>
+                                                </p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                    <Card className="bg-white border-slate-200 shadow-sm rounded-xl">
+                                        <CardContent className="p-4 flex items-center gap-4">
+                                            <div className="p-3 bg-red-100 text-red-600 rounded-lg">
+                                                <AlertCircle className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <p className="text-slate-500 text-xs font-bold uppercase tracking-wider">Belum Presensi</p>
+                                                <p className="text-2xl font-black text-slate-800">
+                                                    {countPending} <span className="text-sm font-medium text-slate-400">Kelas</span>
+                                                </p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {monitorData.map((cls: any, idx) => (
+                                        <Card key={idx} className={`border-l-4 shadow-sm rounded-xl overflow-hidden ${cls.status === "DONE" ? "border-l-emerald-500" : "border-l-red-500"}`}>
+                                            <CardHeader className="bg-white border-b border-slate-100 p-4 flex flex-row justify-between items-start">
+                                                <div>
+                                                    <CardTitle className="text-lg font-black text-slate-800">{cls.name}</CardTitle>
+                                                    <p className="text-xs font-bold text-slate-500 mt-1 flex items-center gap-1">
+                                                        <Users className="w-3 h-3" /> {cls.siswaCount} Siswa
+                                                    </p>
+                                                </div>
+                                                <Badge className={`${cls.status === "DONE" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"} border-0 shadow-none`}>
+                                                    {cls.status === "DONE" ? "Selesai" : "Belum Absen"}
+                                                </Badge>
+                                            </CardHeader>
+                                            <CardContent className="p-4 space-y-3 bg-slate-50/50">
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-slate-500 font-medium">Mapel:</span>
+                                                    <span className="font-bold text-slate-800">{cls.mapel}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-slate-500 font-medium">Guru:</span>
+                                                    <span className="font-bold text-slate-800">{cls.guru}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="text-slate-500 font-medium">Jam:</span>
+                                                    <span className="font-mono text-slate-600 bg-white px-2 py-0.5 rounded border border-slate-200 text-xs">{cls.time}</span>
+                                                </div>
+
+                                                {cls.status === "DONE" && (
+                                                    <div className="pt-2 border-t border-slate-200 mt-2">
+                                                        <p className="text-[10px] text-slate-400 font-bold mb-2 uppercase tracking-wide">Jurnal Guru:</p>
+                                                        <p className="text-xs text-slate-600 italic line-clamp-2">
+                                                            "{cls.journal || "Belum ada catatan jurnal."}"
+                                                        </p>
+                                                    </div>
+                                                )}
+
+                                                {cls.status === "PENDING" && (
+                                                    <div className="pt-4">
+                                                        <Button 
+                                                            onClick={async () => {
+                                                                try {
+                                                                    await fetch("http://127.0.0.1/presensipander/api/notifikasi/index.php", {
+                                                                        method: "POST",
+                                                                        body: JSON.stringify({
+                                                                            type: "REMINDER",
+                                                                            message: `Mohon segera lakukan presensi di kelas ${cls.name} untuk mata pelajaran ${cls.mapel}.`,
+                                                                            teacher: cls.guru
+                                                                        })
+                                                                    });
+                                                                    toast.success(`Pesan peringatan telah dikirim ke ${cls.guru}.`);
+                                                                } catch(e) {
+                                                                    toast.error("Gagal mengirim pengingat.");
+                                                                }
+                                                            }} 
+                                                            size="sm" 
+                                                            className="w-full bg-red-600 hover:bg-red-700 text-white font-bold h-8 text-xs shadow-red-200 shadow-md"
+                                                        >
+                                                            <AlertTriangle className="w-3 h-3 mr-1" /> Ingatkan Guru
+                                                        </Button>
+                                                    </div>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    ))}
+                                </div>
+                            </>
+                        );
+                    })()}
                 </TabsContent>
 
-                {/* TAB 3: PROMOSI KELAS (KENAIKAN KELAS) */}
-                <TabsContent value="promotion" className="space-y-6">
-                    <Card className="border-slate-200 bg-white shadow-md rounded-xl">
-                        <CardHeader className="bg-amber-50 border-b border-amber-100 px-6 py-4">
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                                <div>
-                                    <CardTitle className="text-amber-900 text-lg font-bold flex items-center gap-2">
-                                        <Award className="w-5 h-5" />
-                                        Manajemen Kenaikan Kelas
-                                    </CardTitle>
-                                    <CardDescription className="text-amber-700/80">Fitur ini digunakan saat akhir semester genap.</CardDescription>
-                                </div>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-8 text-center space-y-4">
-                            <div className="max-w-xl mx-auto space-y-6">
-                                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-left space-y-4">
-                                    <h3 className="font-bold text-slate-800 border-b border-slate-200 pb-2">Pindah Kelas Masal</h3>
-                                    <div className="grid grid-cols-2 gap-4 items-center">
-                                        <div className="space-y-2">
-                                            <Label className="text-xs font-bold text-slate-500 uppercase">Dari Kelas</Label>
-                                            <Select value={kenaikanFrom} onValueChange={setKenaikanFrom}>
-                                                <SelectTrigger><SelectValue placeholder="Pilih Kelas" /></SelectTrigger>
-                                                <SelectContent>
-                                                    {classes.map(c => <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="flex justify-center pt-6">
-                                            <ArrowRight className="text-slate-400" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-xs font-bold text-slate-500 uppercase">Ke Kelas</Label>
-                                            <Select value={kenaikanTo} onValueChange={setKenaikanTo}>
-                                                <SelectTrigger><SelectValue placeholder="Pilih Target" /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="8A">8A</SelectItem>
-                                                    <SelectItem value="8B">8B</SelectItem>
-                                                    <SelectItem value="9A">9A</SelectItem>
-                                                    <SelectItem value="alumni">Lulus / Alumni</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    </div>
-                                    <Button disabled={isPromoting} onClick={handlePromotion} className="w-full bg-[#000080] text-white font-bold h-10 shadow-lg shadow-blue-900/10 hover:bg-[#000060]">
-                                        {isPromoting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Proses Pindah Kelas (Bulk Update)"}
-                                    </Button>
-                                </div>
 
-                                <div className="p-4 bg-red-50 rounded-xl border border-red-100 text-left space-y-4">
-                                    <h3 className="font-bold text-red-800 border-b border-red-200 pb-2 flex items-center gap-2">
-                                        <GraduationCap className="w-4 h-4" /> Kelulusan Kelas 9
-                                    </h3>
-                                    <p className="text-sm text-red-700">
-                                        Proses ini akan menonaktifkan siswa kelas 9 dan memindahkannya ke arsip alumni.
-                                    </p>
-                                    <Button disabled={isPromoting} onClick={handleGraduation} variant="destructive" className="w-full font-bold shadow-lg shadow-red-900/10">
-                                        {isPromoting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Proses Kelulusan Siswa"}
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
             </Tabs>
-        </div>
+        </div >
     );
 }
+

@@ -25,7 +25,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Check, X, Eye, FileText, CheckCircle2, XCircle, FileImage } from "lucide-react";
+import { Check, X, Eye, FileText, CheckCircle2, XCircle, FileImage, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
 type FilterStatus = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
@@ -42,8 +42,11 @@ const statusBadge = (status: string) => {
 };
 
 export default function GuruIzinPage() {
+    const currentUser = useAppStore((s) => s.currentUser);
     const leaveRequests = useAppStore((s) => s.leaveRequests);
     const reviewLeaveRequest = useAppStore((s) => s.reviewLeaveRequest);
+
+    const isGuru = currentUser?.role === 'GURU';
 
     const [filter, setFilter] = useState<FilterStatus>("ALL");
     const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(null);
@@ -107,12 +110,15 @@ export default function GuruIzinPage() {
                                 <TableHead className="font-bold text-[#000080]">Tanggal</TableHead>
                                 <TableHead className="font-bold text-[#000080]">Alasan Singkat</TableHead>
                                 <TableHead className="font-bold text-[#000080]">Status</TableHead>
-                                <TableHead className="font-bold text-[#000080] text-right">Aksi</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {filtered.length > 0 ? filtered.map((lr) => (
-                                <TableRow key={lr.id} className="hover:bg-slate-50/50">
+                                <TableRow 
+                                    key={lr.id} 
+                                    className="hover:bg-slate-50/50 cursor-pointer transition-colors"
+                                    onClick={() => { setSelectedRequest(lr); setReviewNotes(""); }}
+                                >
                                     <TableCell>
                                         <p className="font-bold text-slate-800 text-sm">{lr.studentName}</p>
                                         <p className="text-[10px] text-slate-500 mt-0.5">NIS: {lr.studentNis}</p>
@@ -133,22 +139,10 @@ export default function GuruIzinPage() {
                                     <TableCell>
                                         {statusBadge(lr.status)}
                                     </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex items-center justify-end gap-2">
-                                            {lr.status === "PENDING" && (
-                                                <Button size="sm" onClick={() => { setSelectedRequest(lr); handleReview("APPROVED"); }} className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold hidden sm:flex">
-                                                    Setujui Langsung
-                                                </Button>
-                                            )}
-                                            <Button variant="outline" size="sm" onClick={() => { setSelectedRequest(lr); setReviewNotes(""); }} className="text-slate-600 hover:text-[#000080] hover:bg-blue-50">
-                                                <Eye className="w-4 h-4 mr-1.5" /> Detail
-                                            </Button>
-                                        </div>
-                                    </TableCell>
                                 </TableRow>
                             )) : (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="text-center py-16">
+                                    <TableCell colSpan={5} className="text-center py-16">
                                         <div className="flex flex-col items-center justify-center">
                                             <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                                             <p className="text-slate-500 font-medium">
@@ -273,35 +267,46 @@ export default function GuruIzinPage() {
 
                             {/* Review Action */}
                             {selectedRequest.status === "PENDING" && (
-                                <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-3">
-                                    <div>
-                                        <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1 block">Catatan Penolakan (Wajib jika menolak):</label>
-                                        <Textarea
-                                            placeholder="Tuliskan alasan penolakan di sini..."
-                                            value={reviewNotes}
-                                            onChange={(e) => setReviewNotes(e.target.value)}
-                                            className="bg-white border-slate-200 text-slate-800 resize-none h-20"
-                                        />
+                                isGuru ? (
+                                    <div className="mt-8 pt-6 border-t border-slate-100 text-center">
+                                        <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 inline-flex items-center gap-3">
+                                            <AlertCircle className="w-5 h-5 text-amber-600" />
+                                            <p className="text-sm font-bold text-amber-800">
+                                                Verifikasi izin hanya dapat dilakukan oleh Admin Tata Usaha.
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <Button
-                                            onClick={() => handleReview("REJECTED")}
-                                            variant="outline"
-                                            className="w-1/3 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 font-bold"
-                                        >
-                                            <X className="w-5 h-5 mr-2" /> Tolak
-                                        </Button>
-                                        <Button
-                                            onClick={() => handleReview("APPROVED")}
-                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10"
-                                        >
-                                            <CheckCircle2 className="w-5 h-5 mr-2" /> Setujui & Update Database
-                                        </Button>
+                                ) : (
+                                    <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-3">
+                                        <div>
+                                            <label className="text-xs font-black text-slate-500 uppercase tracking-wide mb-1 block">Catatan Penolakan (Wajib jika menolak):</label>
+                                            <Textarea
+                                                placeholder="Tuliskan alasan penolakan di sini..."
+                                                value={reviewNotes}
+                                                onChange={(e) => setReviewNotes(e.target.value)}
+                                                className="bg-white border-slate-200 text-slate-800 resize-none h-20"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Button
+                                                onClick={() => handleReview("REJECTED")}
+                                                variant="outline"
+                                                className="w-1/3 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 font-bold"
+                                            >
+                                                <X className="w-5 h-5 mr-2" /> Tolak
+                                            </Button>
+                                            <Button
+                                                onClick={() => handleReview("APPROVED")}
+                                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-10"
+                                            >
+                                                <CheckCircle2 className="w-5 h-5 mr-2" /> Setujui & Update Database
+                                            </Button>
+                                        </div>
+                                        <p className="text-[10px] text-center font-bold text-slate-400">
+                                            Data presensi akan otomatis diubah ke {selectedRequest.type} & orang tua akan dikirimi notifikasi WA via API Fontee.
+                                        </p>
                                     </div>
-                                    <p className="text-[10px] text-center font-bold text-slate-400">
-                                        Data presensi akan otomatis diubah ke {selectedRequest.type} & orang tua akan dikirimi notifikasi WA via API Fontee.
-                                    </p>
-                                </div>
+                                )
                             )}
                         </div>
                     )}

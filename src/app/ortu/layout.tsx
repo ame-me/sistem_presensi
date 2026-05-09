@@ -7,11 +7,18 @@ import { Sidebar } from "@/components/sidebar";
 
 export default function OrtuLayout({ children }: { children: ReactNode }) {
     const currentUser = useAppStore((s) => s.currentUser);
+    const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
     const router = useRouter();
 
     useEffect(() => {
         if (!currentUser || currentUser.role !== "ORTU") {
             router.replace("/login");
+            return;
+        }
+
+        if (!selectedTahunAjaran) {
+            router.replace("/select-year");
+            return;
         }
     }, [currentUser, router]);
 

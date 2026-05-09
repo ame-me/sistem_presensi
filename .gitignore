@@ -44,3 +44,13 @@ next-env.d.ts
 
 # misc build artifacts
 tsc_output.txt
+
+# antigravity
+.gemini/
+scratch/
+*.txt
+*.sql
+*.log
+*.php
+!database.sql
+!schema.json

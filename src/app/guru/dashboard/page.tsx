@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import {
     Card,
@@ -21,8 +22,6 @@ import {
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -39,93 +38,173 @@ import {
     Eye,
     TrendingUp,
     AlertCircle,
-    Play
+    Play,
+    Bell,
+    Loader2,
+    Camera,
+    FileImage,
+    Info
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer
-} from "recharts";
+import { useJadwalData } from "@/hooks/useJadwalData";
+import { useAttendanceData } from "@/hooks/useAttendanceData";
+import { useIzinData, reviewIzinAPI } from "@/hooks/useIzinData";
+import { useNotificationData } from "@/hooks/useNotificationData";
 
 const DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+const DAY_MAP: Record<string, number> = {
+    "SENIN": 1, "SELASA": 2, "RABU": 3, "KAMIS": 4, "JUMAT": 5, "SABTU": 6
+};
 
 export default function GuruDashboardPage() {
+    const router = useRouter();
     const currentUser = useAppStore((s) => s.currentUser);
-    const getSchedulesByTeacher = useAppStore((s) => s.getSchedulesByTeacher);
-    const getClassesByTeacher = useAppStore((s) => s.getClassesByTeacher);
-    const getPendingLeaveRequests = useAppStore((s) => s.getPendingLeaveRequests);
-    const attendanceRecords = useAppStore((s) => s.attendanceRecords);
+    const today = new Date().toISOString().split("T")[0];
 
-    if (!currentUser) return null;
+    const [mounted, setMounted] = useState(false);
+    const [navigatingId, setNavigatingId] = useState<number | null>(null);
 
-    const schedules = getSchedulesByTeacher(currentUser.id);
-    const classes = getClassesByTeacher(currentUser.id);
-    const pendingLeave = getPendingLeaveRequests();
-    const todayIndex = new Date().getDay();
-    const todaySchedules = schedules.filter((s) => s.dayOfWeek === todayIndex);
+    // Fetch REAL data from database
+    const { jadwal: rawJadwal, loading: loadingJadwal } = useJadwalData(undefined, undefined, currentUser?.teacherCode);
+    
+    // We look back 5 days for trend data
+    const fiveDaysAgo = new Date();
+    fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 4);
+    const startDate = fiveDaysAgo.toISOString().split("T")[0];
+    
+    const { attendance: todayRecords } = useAttendanceData(today, currentUser?.teacherCode);
+    const { attendance: historyRecords } = useAttendanceData(undefined, currentUser?.teacherCode, undefined, startDate, today);
+    const { izin: allIzin, loading: loadingIzin, refetch: refetchIzin } = useIzinData();
+    const { notifications, refetch: refetchNotif } = useNotificationData(currentUser?.teacherCode);
 
-    // Filter attendance for the current teacher's classes
-    const teacherClassIds = new Set(classes.map(c => c.id));
-    const teacherAttendance = attendanceRecords.filter(a => a.scheduleId && schedules.find(s => s.id === a.scheduleId));
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
-    // Live Class Logic (Mock Implementation)
-    const nowHour = new Date().getHours() + ":" + Math.floor(new Date().getMinutes() / 15) * 15; // Rough current time bucket
-    const activeSchedule = todaySchedules[0]; // Mock active class
-    const isLateAttendance = true; // Mock: 10 mins passed without attendance
-
-    // Trend Chart Data (Mock 7 Days)
-    const chartData = [
-        { name: "Sen", hadir: 30, absen: 2 },
-        { name: "Sel", hadir: 31, absen: 1 },
-        { name: "Rab", hadir: 28, absen: 4 },
-        { name: "Kam", hadir: 32, absen: 0 },
-        { name: "Jum", hadir: 29, absen: 3 },
-    ];
-
-    const handleAcceptLeave = (id: string, name: string) => {
-        toast.success(`Izin untuk ${name} telah disetujui.`);
+    const handleGoToAttendance = async (notif: any) => {
+        setNavigatingId(notif.id);
+        try {
+            const res = await fetch("http://127.0.0.1/presensipander/api/notifikasi/index.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: notif.id, action: "dismiss" })
+            });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                refetchNotif();
+                if (notif.schedule_id) {
+                    router.push(`/guru/presensi?scheduleId=${notif.schedule_id}&date=${notif.date}`);
+                }
+            } else {
+                toast.error("Gagal memproses notifikasi");
+                setNavigatingId(null);
+            }
+        } catch (e) {
+            console.error("Navigation failed", e);
+            toast.error("Terjadi kesalahan sistem");
+            setNavigatingId(null);
+        }
     };
 
-    const handleRejectLeave = (id: string, name: string) => {
-        toast.error(`Izin untuk ${name} ditolak.`);
+    if (!currentUser || !mounted) return null;
+
+    // Map JadwalItem to UI format
+    const schedules = rawJadwal.map(j => ({
+        id: j.id.toString(),
+        rombelId: j.class_name,
+        className: j.class_name,
+        subjectName: j.subject_hint || j.teacher_mapel?.split(' (')[0] || "Mata Pelajaran",
+        startTime: j.time_range.split(' - ')[0],
+        endTime: j.time_range.split(' - ')[1],
+        dayOfWeek: DAY_MAP[j.day] || 0
+    }));
+
+    const rombels = Array.from(new Set(schedules.map(s => s.className))).map(name => ({ id: name, name }));
+    const pendingLeave = allIzin.filter((i: any) => i.status === "PENDING");
+    const approvedLeave = allIzin.filter((i: any) => i.status === "APPROVED");
+    const isGuru = currentUser?.role === 'GURU';
+    
+    const todayIndex = new Date().getDay();
+    const todaySchedulesRaw = (schedules || []).filter((s) => {
+        // Robust day matching: handle cases where DB has "KAMIS " or "kamis"
+        const targetDayName = DAY_NAMES[todayIndex].toUpperCase();
+        const schedDayUpper = rawJadwal.find(j => j.id.toString() === s.id)?.day?.trim()?.toUpperCase() || "";
+        return s.dayOfWeek === todayIndex || schedDayUpper === targetDayName;
+    });
+
+    // Grouping consecutive sessions
+    const groupedSchedules = todaySchedulesRaw.reduce((acc: any[], sch) => {
+        const last = acc[acc.length - 1];
+        if (last && last.className === sch.className && last.subjectName === sch.subjectName) {
+            last.ids.push(sch.id);
+            last.endTime = sch.endTime;
+            last.totalHours += 1;
+            return acc;
+        }
+        acc.push({ ...sch, ids: [sch.id], totalHours: 1 });
+        return acc;
+    }, []).sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+    const todaySchedules = groupedSchedules;
+    
+    // Time check for active class
+    const now = new Date();
+    const currentStr = `${now.getHours().toString().padStart(2, '0')}.${now.getMinutes().toString().padStart(2, '0')}`;
+    const activeSchedule = todaySchedules.find(s => currentStr <= s.endTime);
+    
+    const isLateAttendance = !!(activeSchedule && 
+        currentStr >= activeSchedule.startTime && 
+        !todayRecords.some((r: any) => activeSchedule.ids.includes(r.schedule_id?.toString())));
+
+    // Chart Data formatting
+    const chartData = Array.from({ length: 5 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (4 - i));
+        const dStr = d.toISOString().split("T")[0];
+        const dayNamesIndoShort = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
+        const dayLabel = dayNamesIndoShort[d.getDay()];
+        
+        const dayRecords = (historyRecords || []).filter((r: any) => r.date === dStr);
+        return {
+            name: dayLabel,
+            hadir: dayRecords.filter((r: any) => r.status === 'HADIR').length,
+            absen: dayRecords.filter((r: any) => r.status !== 'HADIR').length,
+        };
+    });
+
+    const handleAcceptLeave = async (id: string, name: string) => {
+        const res = await reviewIzinAPI(Number(id), 'APPROVED', 'Disetujui oleh Guru', currentUser?.name || 'Guru');
+        if (res.status === 'success') {
+            toast.success(`Izin untuk ${name} telah disetujui.`);
+            refetchIzin();
+        } else {
+            toast.error(`Gagal menyetujui izin.`);
+        }
+    };
+
+    const handleRejectLeave = async (id: string, name: string) => {
+        const res = await reviewIzinAPI(Number(id), 'REJECTED', 'Ditolak oleh Guru', currentUser?.name || 'Guru');
+        if (res.status === 'success') {
+            toast.error(`Izin untuk ${name} ditolak.`);
+            refetchIzin();
+        } else {
+            toast.error(`Gagal menolak izin.`);
+        }
     };
 
     const stats = [
-        {
-            label: "Kelas Diajar",
-            value: classes.length,
-            icon: <BookOpen className="w-5 h-5" />,
-            color: "bg-blue-50 text-[#000080]",
-        },
-        {
-            label: "Jadwal Pelajaran",
-            value: schedules.length,
-            icon: <ClipboardList className="w-5 h-5" />,
-            color: "bg-indigo-50 text-indigo-700",
-        },
-        {
-            label: "Presensi Tercatat",
-            value: attendanceRecords.length,
-            icon: <Users className="w-5 h-5" />,
-            color: "bg-emerald-50 text-[#10B981]",
-        },
-        {
-            label: "Perlu Verifikasi",
-            value: pendingLeave.length,
-            icon: <FileText className="w-5 h-5" />,
-            color: "bg-amber-50 text-[#F59E0B]",
-        },
+        { label: "Kelas Diajar", value: rombels.length, icon: <BookOpen className="w-5 h-5" />, color: "bg-blue-50 text-[#000080]" },
+        { label: "Jadwal Pelajaran", value: schedules.length, icon: <ClipboardList className="w-5 h-5" />, color: "bg-indigo-50 text-indigo-700" },
+        { label: "Presensi Tercatat", value: todayRecords.length, icon: <Users className="w-5 h-5" />, color: "bg-emerald-50 text-[#10B981]" },
+        { label: isGuru ? "Total Dispensasi" : "Perlu Verifikasi", value: isGuru ? approvedLeave.length : pendingLeave.length, icon: <FileText className="w-5 h-5" />, color: isGuru ? "bg-blue-50 text-blue-600" : "bg-amber-50 text-[#F59E0B]" },
     ];
 
     return (
         <div className="space-y-8 font-sans">
-            {/* Header */}
+            {/* Header section with Dynamic Date string rendered on client */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold text-[#000080] tracking-tight">
@@ -134,10 +213,7 @@ export default function GuruDashboardPage() {
                     <p className="text-slate-500 font-medium mt-1 flex items-center gap-2">
                         <span className="inline-block w-2 h-2 rounded-full bg-[#10B981]"></span>
                         SIPANDU - SMPK SANTA MARIA 2 • {new Date().toLocaleDateString("id-ID", {
-                            weekday: "long",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
+                            weekday: "long", year: "numeric", month: "long", day: "numeric",
                         })}
                     </p>
                 </div>
@@ -146,7 +222,7 @@ export default function GuruDashboardPage() {
                 </div>
             </div>
 
-            {/* Stats */}
+            {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {stats.map((stat) => (
                     <Card key={stat.label} className="border-slate-200 bg-white shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group">
@@ -165,33 +241,31 @@ export default function GuruDashboardPage() {
                 ))}
             </div>
 
-            {/* Pending leave alert */}
-            {pendingLeave.length > 0 && (
-                <Link href="/guru/izin">
-                    <Card className="bg-amber-50 border-amber-200 hover:border-amber-400 transition-all cursor-pointer shadow-sm group">
-                        <CardContent className="py-5 px-6 flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="p-3 bg-amber-500 text-white rounded-xl shadow-md rotate-3 group-hover:rotate-0 transition-all">
-                                    <FileText className="w-6 h-6" />
+            {/* Notifications and Alerts */}
+            {notifications.length > 0 && (
+                <div className="space-y-3">
+                    {notifications.map((notif: any) => (
+                        <Card key={notif.id} className="bg-red-50 border-red-200 shadow-sm border-l-4 border-l-red-500 animate-in fade-in slide-in-from-top-4 duration-500">
+                            <CardContent className="py-4 px-6 flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+                                        <Bell className="w-5 h-5 animate-ring" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-black text-red-900 uppercase tracking-tighter">Peringatan Admin</p>
+                                        <p className="text-sm text-red-700 font-bold">{notif.message}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <p className="text-base font-bold text-amber-900">
-                                        Perhatian: {pendingLeave.length} Pengajuan Izin
-                                    </p>
-                                    <p className="text-sm text-amber-700 font-medium">
-                                        Ada permohonan yang memerlukan evaluasi Anda segera.
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="bg-white/50 p-2 rounded-full border border-amber-200">
-                                <ChevronRight className="w-5 h-5 text-amber-600" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </Link>
+                                <Button className="bg-red-600 hover:bg-red-700 text-white font-black text-[10px] h-9 px-6 shadow-md" onClick={() => handleGoToAttendance(notif)} disabled={navigatingId === notif.id}>
+                                    {navigatingId === notif.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "ISI PRESENSI SEKARANG"}
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
             )}
 
-            {/* Live Class Widget */}
+            {/* Active Class Widget */}
             {activeSchedule && (
                 <Card className={`border-2 shadow-md ${isLateAttendance ? 'bg-amber-50 border-amber-300' : 'bg-blue-50 border-blue-200'}`}>
                     <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-6">
@@ -205,22 +279,20 @@ export default function GuruDashboardPage() {
                                     {activeSchedule.className} - {activeSchedule.subjectName}
                                 </h3>
                                 <p className={`text-sm font-medium mt-1 ${isLateAttendance ? 'text-amber-700' : 'text-blue-700'}`}>
-                                    Waktu: {activeSchedule.startTime}
-                                    {isLateAttendance && " (Belum melakukan presensi!)"}
+                                    Waktu: {activeSchedule.startTime} {isLateAttendance && " (Belum melakukan presensi!)"}
                                 </p>
                             </div>
                         </div>
-                        <Link href={`/guru/presensi?classId=${activeSchedule.classId}&scheduleId=${activeSchedule.id}`}>
+                        <Link href={`/guru/presensi?rombelId=${activeSchedule.rombelId}&scheduleId=${activeSchedule.ids.join(',')}`}>
                             <Button size="lg" className={`${isLateAttendance ? 'bg-amber-600 hover:bg-amber-700' : 'bg-[#000080] hover:bg-blue-900'} text-white font-bold shadow-lg animate-bounce`}>
-                                <Play className="w-5 h-5 mr-2" />
-                                Mulai Presensi Sekarang
+                                <Play className="w-5 h-5 mr-2" /> Mulai Presensi Sekarang
                             </Button>
                         </Link>
                     </CardContent>
                 </Card>
             )}
 
-            {/* Today's Schedule */}
+            {/* Today's Schedule Card */}
             <Card className="border-slate-200 bg-white shadow-md rounded-2xl">
                 <CardHeader className="border-b border-slate-50 px-8 py-6">
                     <CardTitle className="text-[#000080] text-lg font-bold flex items-center gap-3">
@@ -234,24 +306,22 @@ export default function GuruDashboardPage() {
                     {todaySchedules.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {todaySchedules.map((sch) => (
-                                <Link
-                                    key={sch.id}
-                                    href={`/guru/presensi?classId=${sch.classId}&scheduleId=${sch.id}`}
-                                >
-                                    <div className="flex items-center justify-between p-5 rounded-2xl bg-slate-50 border border-slate-200 hover:border-[#000080] hover:bg-white hover:shadow-lg hover:shadow-blue-900/5 transition-all cursor-pointer group">
+                                <Link key={sch.ids.join('-')} href={`/guru/presensi?rombelId=${sch.rombelId}&scheduleId=${sch.ids.join(',')}`}>
+                                    <div className="flex items-center justify-between p-5 rounded-2xl bg-slate-50 border border-slate-200 hover:border-[#000080] hover:bg-white hover:shadow-lg transition-all cursor-pointer group">
                                         <div className="flex items-center gap-5">
                                             <div className="text-center px-4 py-3 bg-[#000080] text-white rounded-xl min-w-[100px] shadow-sm group-hover:-translate-y-1 transition-transform">
                                                 <p className="text-xs font-bold opacity-80 uppercase leading-none mb-1">Pukul</p>
                                                 <p className="text-sm font-black italic">{sch.startTime}</p>
                                             </div>
                                             <div>
-                                                <p className="text-lg font-bold text-slate-800 group-hover:text-[#000080] transition-colors leading-tight">
-                                                    {sch.subjectName}
-                                                </p>
+                                                <p className="text-lg font-bold text-slate-800 group-hover:text-[#000080] transition-colors leading-tight">{sch.subjectName}</p>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <Badge variant="outline" className="bg-white text-slate-500 font-bold border-slate-200">
-                                                        {sch.className}
-                                                    </Badge>
+                                                    <Badge variant="outline" className="bg-white text-slate-500 font-bold border-slate-200">{sch.className}</Badge>
+                                                    {sch.totalHours > 1 && (
+                                                        <Badge variant="secondary" className="bg-blue-100 text-[#000080] font-black border-none px-2 text-[10px]">
+                                                            {sch.totalHours} JAM PEL
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -268,131 +338,88 @@ export default function GuruDashboardPage() {
                                 <ClipboardList className="w-10 h-10 text-slate-400" />
                             </div>
                             <p className="text-lg font-bold text-slate-800">Tidak ada jadwal hari ini</p>
-                            <p className="text-sm text-slate-500 mt-1 max-w-[250px]">
-                                Nikmati waktu istirahat sejenak atau selesaikan tugas administratif lainnya.
-                            </p>
                         </div>
                     )}
                 </CardContent>
             </Card>
 
-            {/* Verification Center & Teacher's Stats */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Panel Persetujuan Izin & Sakit */}
+            {/* Leave Verification Panel */}
+            <div className="grid grid-cols-1 gap-8">
                 <Card className="border-slate-200 shadow-md">
                     <CardHeader className="bg-slate-50 border-b border-slate-100">
                         <CardTitle className="text-[#000080] text-lg font-bold flex items-center gap-2">
-                            <FileText className="w-5 h-5" />
-                            Persetujuan Izin & Sakit
+                            <FileText className="w-5 h-5" /> Daftar Izin & Sakit Siswa
                         </CardTitle>
-                        <CardDescription>Persetujuan cepat permohonan dari wali murid</CardDescription>
                     </CardHeader>
                     <CardContent className="p-0">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Siswa</TableHead>
+                                    <TableHead className="px-6">Siswa</TableHead>
                                     <TableHead>Keterangan</TableHead>
-                                    <TableHead className="text-right">Aksi</TableHead>
+                                    <TableHead className="text-right px-6">Detail</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {pendingLeave.length > 0 ? pendingLeave.slice(0, 3).map((req, i) => (
-                                    <TableRow key={i}>
-                                        <TableCell>
-                                            <p className="font-bold text-slate-800 text-sm">{req.studentName}</p>
-                                            <p className="text-[10px] text-slate-500">NIS: {req.studentNis}</p>
+                                {pendingLeave.length > 0 ? pendingLeave.slice(0, 5).map((req, i) => (
+                                    <TableRow key={req.id}>
+                                        <TableCell className="px-6">
+                                            <p className="font-bold text-slate-800 text-sm">{req.student_name || req.studentName}</p>
+                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">SISWA AKTIF</p>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant="outline" className={req.type === 'SAKIT' ? 'text-blue-600 bg-blue-50' : 'text-amber-600 bg-amber-50'}>{req.type}</Badge>
-                                            <p className="text-xs mt-1 text-slate-600 truncate max-w-[150px]">{req.reason}</p>
+                                            <Badge variant="outline" className={req.type === 'SAKIT' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-amber-600 bg-amber-50 border-amber-200'}>
+                                                {req.type === 'SAKIT' ? '🤒 SAKIT' : '📋 IZIN'}
+                                            </Badge>
                                         </TableCell>
-                                        <TableCell className="text-right flex items-center justify-end gap-1">
+                                        <TableCell className="text-right flex items-center justify-end gap-2 px-6">
                                             <Dialog>
                                                 <DialogTrigger asChild>
-                                                    <Button variant="outline" size="icon" className="h-8 w-8 text-slate-600 hover:text-[#000080]" title="Lihat Bukti">
-                                                        <Eye className="w-4 h-4" />
+                                                    <Button variant="ghost" size="sm" className="text-[#000080] hover:bg-blue-50 font-bold">
+                                                        <Eye className="w-4 h-4 mr-1.5" /> Lihat Detail
                                                     </Button>
                                                 </DialogTrigger>
-                                                <DialogContent className="sm:max-w-[400px]">
-                                                    <DialogHeader>
-                                                        <DialogTitle>Bukti Selfie & Surat</DialogTitle>
+                                                <DialogContent className="max-w-2xl bg-white border-none rounded-[2rem] shadow-2xl p-0 overflow-hidden">
+                                                    <DialogHeader className="bg-slate-50 p-6 border-b border-slate-100">
+                                                        <DialogTitle className="text-lg font-black text-[#000080] tracking-tight">
+                                                            Lampiran Bukti — {req.student_name || req.studentName}
+                                                        </DialogTitle>
                                                     </DialogHeader>
-                                                    <div className="py-4">
-                                                        <div className="w-full h-48 bg-slate-100 rounded-xl mb-4 border-2 border-dashed border-slate-300 flex items-center justify-center relative overflow-hidden">
-                                                            <img src={`https://api.dicebear.com/7.x/shapes/svg?seed=${req.id}`} alt="Bukti" className="object-cover opacity-50" />
-                                                            <div className="absolute inset-0 flex items-center justify-center"><p className="text-slate-500 font-bold bg-white/80 px-3 py-1 rounded">Simulasi Bukti Foto</p></div>
+                                                    <div className="p-8 bg-slate-50/30">
+                                                        <div className="bg-white p-6 rounded-2xl border-2 border-slate-100 shadow-sm">
+                                                            <p className="text-sm font-bold text-[#000080] mb-2 uppercase tracking-widest flex items-center gap-2">
+                                                                <Info className="w-4 h-4" /> Detail Alasan
+                                                            </p>
+                                                            <p className="text-slate-600 leading-relaxed font-medium">
+                                                                {req.reason || "Tidak ada keterangan tambahan."}
+                                                            </p>
+                                                            {isGuru && (
+                                                                <div className="mt-6 p-4 bg-amber-50 rounded-xl border border-amber-100 flex items-center gap-2">
+                                                                    <AlertCircle className="w-4 h-4 text-amber-600" />
+                                                                    <p className="text-xs font-bold text-amber-800">Persetujuan izin hanya oleh Admin Tata Usaha.</p>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        <p className="text-sm font-medium text-slate-700">Pesan: "{req.reason}"</p>
                                                     </div>
+                                                    {!isGuru && (
+                                                        <div className="p-6 bg-white flex justify-end gap-3">
+                                                            <Button onClick={() => handleAcceptLeave(req.id, req.student_name || req.studentName)} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-11 px-8 rounded-xl shadow-lg">Setujui Izin</Button>
+                                                            <Button onClick={() => handleRejectLeave(req.id, req.student_name || req.studentName)} variant="outline" className="text-red-600 border-red-100 hover:bg-red-50 font-bold h-11 px-8 rounded-xl">Tolak</Button>
+                                                        </div>
+                                                    )}
                                                 </DialogContent>
                                             </Dialog>
-                                            <Button onClick={() => handleAcceptLeave(req.id, req.studentName)} size="icon" className="h-8 w-8 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-emerald-200">
-                                                <CheckCircle2 className="w-4 h-4" />
-                                            </Button>
-                                            <Button onClick={() => handleRejectLeave(req.id, req.studentName)} size="icon" className="h-8 w-8 bg-red-100 text-red-700 hover:bg-red-200 border-red-200">
-                                                <XCircle className="w-4 h-4" />
-                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 )) : (
                                     <TableRow>
-                                        <TableCell colSpan={3} className="text-center py-8 text-slate-500">Tidak ada pengajuan perizinan baru.</TableCell>
+                                        <TableCell colSpan={3} className="text-center py-10 text-slate-400 font-medium">Semua permohonan terkontrol.</TableCell>
                                     </TableRow>
                                 )}
                             </TableBody>
                         </Table>
                     </CardContent>
                 </Card>
-
-                {/* Ringkasan Kehadiran Kelas */}
-                <div className="space-y-6">
-                    <Card className="border-slate-200 shadow-md">
-                        <CardHeader className="bg-slate-50 border-b border-slate-100 pb-4">
-                            <CardTitle className="text-[#000080] text-lg font-bold flex items-center gap-2">
-                                <TrendingUp className="w-5 h-5" />
-                                Tren Kehadiran (7 Hari Terakhir)
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="h-[200px] p-6">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-                                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                    <Bar dataKey="hadir" stackId="a" fill="#10B981" radius={[0, 0, 4, 4]} name="Hadir" />
-                                    <Bar dataKey="absen" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Absen/Izin" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-red-200 shadow-sm bg-red-50">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-red-800 text-sm font-bold flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4" />
-                                Siswa Perhatian Khusus
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-3">
-                                {[
-                                    { name: "Chandra Wijaya", class: "7B", issue: "3x Alpha berturut-turut" },
-                                    { name: "Dewi Kirana", class: "8A", issue: "Sering Terlambat > 15 mnt" },
-                                ].map((siswa, idx) => (
-                                    <div key={idx} className="flex items-center justify-between bg-white p-3 rounded-lg border border-red-100 shadow-sm">
-                                        <div>
-                                            <p className="font-bold text-slate-800 text-sm">{siswa.name}</p>
-                                            <p className="text-xs text-red-600 font-medium">{siswa.issue}</p>
-                                        </div>
-                                        <Badge variant="outline" className="bg-slate-50">{siswa.class}</Badge>
-                                    </div>
-                                ))}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
             </div>
         </div>
     );

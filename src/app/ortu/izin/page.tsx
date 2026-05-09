@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Webcam from "react-webcam";
 import { useAppStore } from "@/lib/store";
 import {
@@ -30,17 +30,30 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { useSiswaData } from "@/hooks/useSiswaData";
 
 export default function OrtuIzinPage() {
     const currentUser = useAppStore((s) => s.currentUser);
-    const getChildrenByParent = useAppStore((s) => s.getChildrenByParent);
-    const submitLeaveRequest = useAppStore((s) => s.submitLeaveRequest);
+    const { siswa: children, loading: loadingSiswa } = useSiswaData(undefined, undefined, currentUser?.nik);
 
-    const children = currentUser ? getChildrenByParent(currentUser.id) : [];
+    const globalSelectedId = useAppStore((s) => s.selectedChildId);
+    const setGlobalSelectedId = useAppStore((s) => s.setSelectedChildId);
 
-    const [selectedChild, setSelectedChild] = useState(
-        children.length === 1 ? children[0].id : ""
-    );
+    const [selectedChild, setSelectedChild] = useState(globalSelectedId || "");
+
+    useEffect(() => {
+        if (children.length > 0 && !selectedChild) {
+            const firstChildId = children[0].id.toString();
+            setSelectedChild(firstChildId);
+            if (!globalSelectedId) setGlobalSelectedId(firstChildId);
+        }
+    }, [children, selectedChild, globalSelectedId, setGlobalSelectedId]);
+
+    const handleChildChange = (id: string) => {
+        setSelectedChild(id);
+        setGlobalSelectedId(id);
+    };
+
     const [startDate, setStartDate] = useState(new Date().toISOString().split("T")[0]);
     const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
     const [leaveType, setLeaveType] = useState<"IZIN" | "SAKIT">("IZIN");
@@ -53,6 +66,18 @@ export default function OrtuIzinPage() {
     const [submitted, setSubmitted] = useState(false);
     const webcamRef = useRef<Webcam>(null);
     const attachmentWebcamRef = useRef<Webcam>(null);
+    const attachmentFileRef = useRef<HTMLInputElement>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setAttachmentData(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
 
     const captureSelfie = useCallback(() => {
         if (webcamRef.current) {
@@ -88,28 +113,39 @@ export default function OrtuIzinPage() {
         }
 
         setSubmitting(true);
-        await new Promise((r) => setTimeout(r, 500));
 
-        const child = children.find((c) => c.id === selectedChild)!;
+        try {
+            const response = await fetch('http://127.0.0.1/presensipander/api/izin/index.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    studentId: selectedChild,
+                    parentEmail: currentUser?.email || '',
+                    startDate,
+                    endDate,
+                    type: leaveType,
+                    reason,
+                    selfieUrl: selfieData,
+                    attachmentUrl: attachmentData,
+                }),
+            });
 
-        submitLeaveRequest({
-            studentId: child.id,
-            studentName: child.name,
-            studentNis: child.nis,
-            parentId: currentUser!.id,
-            parentName: currentUser!.name,
-            parentPhone: currentUser!.phone,
-            startDate,
-            endDate,
-            type: leaveType,
-            reason,
-            selfieUrl: selfieData,
-            attachmentUrl: attachmentData,
-        });
+            const result = await response.json();
 
-        setSubmitting(false);
-        setSubmitted(true);
-        toast.success("Pengajuan izin berhasil dikirim!");
+            if (result.status === 'success') {
+                setSubmitted(true);
+                toast.success("Pengajuan izin berhasil dikirim!");
+            } else {
+                toast.error(result.message || "Gagal mengirim pengajuan");
+            }
+        } catch (error) {
+            console.error("Submission error:", error);
+            toast.error("Terjadi kesalahan koneksi ke server");
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     if (!currentUser) return null;
@@ -124,8 +160,7 @@ export default function OrtuIzinPage() {
                         </div>
                         <h2 className="text-2xl font-extrabold text-[#000080]">Pengajuan Berhasil!</h2>
                         <p className="text-slate-500 font-medium max-w-sm mx-auto">
-                            Pengajuan izin telah dikirim dan menunggu persetujuan wali kelas.
-                            Notifikasi WhatsApp sedang diproses.
+                            Pengajuan izin telah dikirim dan menunggu persetujuan dari pihak sekolah.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-3 justify-center pt-6">
                             <Button
@@ -174,18 +209,28 @@ export default function OrtuIzinPage() {
                         {/* Pilih Anak */}
                         <div className="space-y-2">
                             <Label className="text-slate-600 font-bold text-xs uppercase tracking-wide">Pilih Anak</Label>
-                            <Select value={selectedChild} onValueChange={setSelectedChild}>
-                                <SelectTrigger className="bg-slate-50 border-slate-200 text-slate-800 h-11 font-medium focus:ring-[#000080]/20">
-                                    <SelectValue placeholder="Pilih anak" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-white border-slate-200">
-                                    {children.map((child) => (
-                                        <SelectItem key={child.id} value={child.id} className="font-medium">
-                                            {child.name} (Kelas {child.className})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            {loadingSiswa ? (
+                                <div className="h-11 bg-slate-50 border border-slate-200 rounded-md animate-pulse flex items-center px-4">
+                                    <Loader2 className="w-4 h-4 animate-spin mr-2 text-slate-400" />
+                                    <span className="text-sm text-slate-400 font-medium">Memuat data...</span>
+                                </div>
+                            ) : (
+                                <Select value={selectedChild} onValueChange={handleChildChange}>
+                                    <SelectTrigger className="bg-slate-50 border-slate-200 text-slate-800 h-11 font-medium focus:ring-[#000080]/20">
+                                        <SelectValue placeholder="Pilih anak" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-white border-slate-200">
+                                        {children.map((child) => (
+                                            <SelectItem key={child.id} value={child.id.toString()} className="font-medium">
+                                                {child.name} (Kelas {(child as any).cls})
+                                            </SelectItem>
+                                        ))}
+                                        {children.length === 0 && (
+                                            <div className="p-4 text-xs text-slate-400 text-center italic">Tidak ada data anak ditemukan</div>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
 
                         {/* Tanggal & Jenis */}
@@ -376,17 +421,40 @@ export default function OrtuIzinPage() {
                                         </Button>
                                     </div>
                                 ) : (
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        onClick={() => setShowAttachmentCamera(true)}
-                                        className="w-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-600/50 hover:bg-blue-50/50 h-32 flex flex-col items-center justify-center gap-3 transition-colors"
-                                    >
-                                        <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center">
-                                            <ImagePlus className="w-6 h-6 text-slate-400" />
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => setShowAttachmentCamera(true)}
+                                            className="flex-1 border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 hover:text-blue-600 hover:border-blue-600/50 hover:bg-blue-50/50 h-32 flex flex-col items-center justify-center gap-3 transition-colors"
+                                        >
+                                            <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center">
+                                                <Camera className="w-6 h-6 text-slate-400" />
+                                            </div>
+                                            <span className="font-bold text-sm text-center">Ambil Foto<br/>Surat Dokter</span>
+                                        </Button>
+
+                                        <div className="flex-1 relative">
+                                            <input 
+                                                type="file" 
+                                                ref={attachmentFileRef}
+                                                onChange={handleFileChange}
+                                                accept="image/*"
+                                                className="hidden"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => attachmentFileRef.current?.click()}
+                                                className="w-full border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 hover:text-indigo-600 hover:border-indigo-600/50 hover:bg-indigo-50/50 h-32 flex flex-col items-center justify-center gap-3 transition-colors"
+                                            >
+                                                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center">
+                                                    <ImagePlus className="w-6 h-6 text-slate-400" />
+                                                </div>
+                                                <span className="font-bold text-sm text-center">Upload File /<br/>Pilih Galeri</span>
+                                            </Button>
                                         </div>
-                                        <span className="font-bold text-sm">Buka Kamera & Foto Surat Dokter</span>
-                                    </Button>
+                                    </div>
                                 )}
                             </div>
                         )}
