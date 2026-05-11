@@ -161,6 +161,36 @@ const normalizeClassName = (value: string) => {
     return value.trim();
 };
 
+const formatExcelDate = (value: string) => {
+    if (!value || value === "-" || value === "0") return "-";
+    
+    // YYYY-MM-DD format (already correct)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    
+    // Excel Serial Number (e.g. 40493)
+    if (/^\d+$/.test(value)) {
+        const serial = parseInt(value, 10);
+        // Heuristic: Excel serials for realistic birth dates (1940 - 2040)
+        if (serial > 10000 && serial < 60000) {
+            try {
+                const date = new Date(Math.round((serial - 25569) * 86400 * 1000));
+                if (!isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0];
+                }
+            } catch (e) {}
+        }
+    }
+    
+    // DD/MM/YYYY or DD-MM-YYYY format
+    const dmyMatch = value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+    if (dmyMatch) {
+        const [_, d, m, y] = dmyMatch;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+
+    return value;
+};
+
 export default function AdminSiswaPage() {
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
     const [searchQuery, setSearchQuery] = useState("");
@@ -295,7 +325,7 @@ export default function AdminSiswaPage() {
             name: getImportCellValue(normalized, ["name", "nama", "nama_siswa"]),
             gender: gender === "P" ? "P" : "L",
             cls,
-            tglLahir: getImportCellValue(normalized, ["tgllahir", "tgl_lahir", "tanggal_lahir"]),
+            tglLahir: formatExcelDate(getImportCellValue(normalized, ["tgllahir", "tgl_lahir", "tanggal_lahir"])),
             kota: getImportCellValue(normalized, ["kota", "kota_lahir", "tempat_lahir"]),
             alamat: getImportCellValue(normalized, ["alamat", "alamat_lengkap"]),
             namaAyah: namaAyah || "-",
