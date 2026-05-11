@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 export interface MapelAPI {
     id: number;
@@ -10,7 +11,7 @@ export interface MapelAPI {
     teachers?: string[];
 }
 
-const API_BASE_URL = "http://127.0.0.1/presensipander/api";
+const API_BASE_URL = getApiBaseUrl();
 
 export function useMapelData() {
     const [mapel, setMapel] = useState<MapelAPI[]>([]);

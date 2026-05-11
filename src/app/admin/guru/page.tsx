@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { cn } from "@/lib/utils";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 const sortClassNames = (a: string, b: string) => {
     const order: Record<string, number> = { "VII": 7, "VIII": 8, "IX": 9 };
@@ -146,7 +147,7 @@ export default function AdminGuruPage() {
         }
         setIsSaving(true);
         try {
-            const res = await fetch("http://127.0.0.1/presensipander/api/guru/index.php", {
+            const res = await fetch(`${getApiBaseUrl()}/guru/index.php`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(newGuru)
@@ -171,7 +172,7 @@ export default function AdminGuruPage() {
         }
         setIsSaving(true);
         try {
-            const res = await fetch("http://127.0.0.1/presensipander/api/guru/index.php", {
+            const res = await fetch(`${getApiBaseUrl()}/guru/index.php`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(editingGuru)
@@ -192,7 +193,7 @@ export default function AdminGuruPage() {
     const handleAction = (action: string, guru: any) => {
         if (action === "delete") {
             if (confirm(`Hapus guru ${guru.name}?`)) {
-                fetch("http://127.0.0.1/presensipander/api/guru/index.php", {
+                fetch(`${getApiBaseUrl()}/guru/index.php`, {
                     method: "DELETE",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ id: guru.id })

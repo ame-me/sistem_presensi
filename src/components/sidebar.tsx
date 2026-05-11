@@ -51,6 +51,16 @@ const navItems: Record<string, NavItem[]> = {
         { label: "Akun Orang Tua", href: "/it/ortu", icon: <Users className="w-5 h-5" /> },
         { label: "Backup Data", href: "/it/backup", icon: <Database className="w-5 h-5" /> },
     ],
+    ADMIN_TU: [
+        { label: "Dashboard", href: "/admin/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: "Daftar Kelas", href: "/admin/kelas", icon: <School className="w-5 h-5" /> },
+        { label: "Manajemen Ruangan", href: "/admin/ruangan", icon: <LayoutDashboard className="w-5 h-5" /> },
+        { label: "Mata Pelajaran", href: "/admin/mapel", icon: <BookOpen className="w-5 h-5" /> },
+        { label: "Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
+        { label: "Siswa", href: "/admin/siswa", icon: <GraduationCap className="w-5 h-5" /> },
+        { label: "Akun Orang Tua", href: "/admin/ortu", icon: <Users className="w-5 h-5" /> },
+        { label: "Rekap Presensi", href: "/admin/rekap", icon: <ClipboardList className="w-5 h-5" /> },
+    ],
     GURU: [
         { label: "Dashboard", href: "/guru/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
         { label: "Presensi", href: "/guru/presensi", icon: <ClipboardList className="w-5 h-5" /> },
@@ -111,8 +121,6 @@ export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
                 ? [{ label: "Panel Wali Kelas", href: "/select-role", icon: <GraduationCap className="w-5 h-5 text-emerald-600" /> }] 
                 : [])
         ]
-        : role === "ADMIN_TU"
-        ? navItems["ADMIN"]
         : navItems[role] || [];
 
     const [mobileOpen, setMobileOpen] = useState(false);

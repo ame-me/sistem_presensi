@@ -70,6 +70,7 @@ import { useGuruData, GuruAPI } from "@/hooks/useGuruData";
 import { useJadwalData, JadwalItem } from "@/hooks/useJadwalData";
 import { useAppStore } from "@/lib/store";
 import { useRuanganData } from "@/hooks/useRuanganData";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 export default function AdminMapelPage() {
     const [filterTingkat, setFilterTingkat] = useState("all");
@@ -191,7 +192,7 @@ export default function AdminMapelPage() {
             teachers: []
         };
 
-        fetch("http://127.0.0.1/presensipander/api/mapel/index.php", {
+        fetch(`${getApiBaseUrl()}/mapel/index.php`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(newMapel)
@@ -213,7 +214,7 @@ export default function AdminMapelPage() {
     const handleEditSave = () => {
         if (!editingMapel) return;
         setIsSaving(true);
-        fetch("http://127.0.0.1/presensipander/api/mapel/index.php", {
+        fetch(`${getApiBaseUrl()}/mapel/index.php`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(editingMapel)
@@ -232,7 +233,7 @@ export default function AdminMapelPage() {
 
     const handleDelete = () => {
         if (!mapelToDelete) return;
-        fetch("http://127.0.0.1/presensipander/api/mapel/index.php", {
+        fetch(`${getApiBaseUrl()}/mapel/index.php`, {
             method: "DELETE",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id: mapelToDelete.id })
@@ -257,7 +258,7 @@ export default function AdminMapelPage() {
 
         setIsSavingSlot(true);
         try {
-            const res = await fetch("http://127.0.0.1/presensipander/api/jadwal/index.php", {
+            const res = await fetch(`${getApiBaseUrl()}/jadwal/index.php`, {
                 method: isNew ? "POST" : "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data)
@@ -285,7 +286,7 @@ export default function AdminMapelPage() {
         
         setIsSavingSlot(true);
         try {
-            const res = await fetch("http://127.0.0.1/presensipander/api/jadwal/index.php", {
+            const res = await fetch(`${getApiBaseUrl()}/jadwal/index.php`, {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id: editingSlot.id })
@@ -796,7 +797,7 @@ export default function AdminMapelPage() {
                                                                                                         mapelName === 'SENAM / LITERASI' || (day === 'KAMIS' && jamNum === 1) ? 'text-purple-900' :
                                                                                                         'text-slate-800 group-hover:text-[#000080]'
                                                                                                     }`} title={mapelName}>
-                                                                                                        {day === 'KAMIS' && jam === 1 && mapelName !== 'SENAM' ? (mapelName || 'SENAM/LITERASI') : mapelName}
+                                                                                                        {day === 'KAMIS' && jamNum === 1 && mapelName !== 'SENAM' ? (mapelName || 'SENAM/LITERASI') : mapelName}
                                                                                                     </p>
                                                                                                     {teacherName !== "-" && (
                                                                                                         <div className="flex items-center gap-1 mt-1.5 text-slate-500">

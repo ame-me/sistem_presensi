@@ -43,6 +43,7 @@ import { useAppStore } from "@/lib/store";
 import { useRuanganData } from "@/hooks/useRuanganData";
 import { useGuruData } from "@/hooks/useGuruData";
 import { useJadwalData } from "@/hooks/useJadwalData";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 const DAY_NAMES = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
 export default function AdminRuanganPage() {
@@ -105,7 +106,7 @@ export default function AdminRuanganPage() {
         setIsSaving(true);
         try {
             const method = editMode ? "PUT" : "POST";
-            const response = await fetch("http://127.0.0.1/presensipander/api/ruangan/index.php", {
+            const response = await fetch(`${getApiBaseUrl()}/ruangan/index.php`, {
                 method,
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData),
@@ -130,7 +131,7 @@ export default function AdminRuanganPage() {
         if (!window.confirm(`Apakah Anda yakin ingin menghapus ${name}?`)) return;
 
         try {
-            const response = await fetch("http://127.0.0.1/presensipander/api/ruangan/index.php", {
+            const response = await fetch(`${getApiBaseUrl()}/ruangan/index.php`, {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id }),

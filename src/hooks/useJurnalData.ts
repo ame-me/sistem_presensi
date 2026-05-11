@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getApiBaseUrl } from '@/lib/api-config';
  
 export function useJurnalData(date?: string, teacherCode?: string, scheduleId?: string) {
     const [jurnal, setJurnal] = useState<any[]>([]);
@@ -7,7 +8,7 @@ export function useJurnalData(date?: string, teacherCode?: string, scheduleId?: 
     useEffect(() => {
         const fetchJurnal = async () => {
             setLoading(true);
-            let url = 'http://127.0.0.1/presensipander/api/jurnal/index.php?';
+            let url = `${getApiBaseUrl()}/jurnal/index.php?`;
             if (date) url += `date=${date}&`;
             if (teacherCode) url += `teacher=${teacherCode}&`;
             if (scheduleId) url += `schedule_id=${scheduleId}&`;
@@ -33,7 +34,7 @@ export function useJurnalData(date?: string, teacherCode?: string, scheduleId?: 
  
 export async function saveJurnalAPI(data: any) {
     try {
-        const res = await fetch('http://127.0.0.1/presensipander/api/jurnal/index.php', {
+        const res = await fetch(`${getApiBaseUrl()}/jurnal/index.php`, {
             method: 'POST',
             body: JSON.stringify(data)
         });

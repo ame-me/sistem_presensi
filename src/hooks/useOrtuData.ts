@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getApiBaseUrl } from '@/lib/api-config';
 
 export interface OrtuAPI {
     id: number;
@@ -6,6 +7,10 @@ export interface OrtuAPI {
     name: string;
     email: string;
     phone: string;
+    namaAyah?: string;
+    pekerjaanAyah?: string;
+    namaIbu?: string;
+    pekerjaanIbu?: string;
     status: string;
 }
 
@@ -19,7 +24,7 @@ export function useOrtuData() {
         setError(null);
         
         try {
-            const url = `http://127.0.0.1/presensipander/api/ortu/index.php`;
+            const url = `${getApiBaseUrl()}/ortu/index.php`;
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             

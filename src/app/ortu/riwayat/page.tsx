@@ -22,6 +22,7 @@ import {
     DialogTitle,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { getUploadUrl } from "@/lib/api-config";
 
 export default function OrtuRiwayatPage() {
     const currentUser = useAppStore((s) => s.currentUser);
@@ -350,7 +351,7 @@ export default function OrtuRiwayatPage() {
                     <div className="bg-slate-50 p-6 flex justify-center items-center min-h-[300px]">
                         {selectedProofUrl && (
                             <img 
-                                src={selectedProofUrl.startsWith('http') ? selectedProofUrl : `http://127.0.0.1/presensipander/uploads/${selectedProofUrl}`} 
+                                src={getUploadUrl(selectedProofUrl)} 
                                 alt="Bukti Lampiran" 
                                 className="max-w-full max-h-[70vh] rounded-lg shadow-lg border border-white"
                                 onError={(e: any) => {
@@ -366,7 +367,7 @@ export default function OrtuRiwayatPage() {
                                 variant="default" 
                                 size="sm" 
                                 className="text-xs font-bold bg-[#000080]"
-                                onClick={() => window.open(selectedProofUrl.startsWith('http') ? selectedProofUrl : `http://127.0.0.1/presensipander/uploads/${selectedProofUrl}`, '_blank')}
+                                onClick={() => window.open(getUploadUrl(selectedProofUrl), '_blank')}
                             >
                                 Buka di Tab Baru
                             </Button>

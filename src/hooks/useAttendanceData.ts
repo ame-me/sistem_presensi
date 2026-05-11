@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
+import { getApiBaseUrl } from '@/lib/api-config';
  
 export function useAttendanceData(date?: string, teacherCode?: string, className?: string, startDate?: string, endDate?: string, studentId?: string, scheduleId?: string) {
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
@@ -22,7 +23,7 @@ export function useAttendanceData(date?: string, teacherCode?: string, className
             if (scheduleId) params.append('schedule_id', scheduleId);
             if (selectedTahunAjaran) params.append('tahun_ajaran', selectedTahunAjaran);
             
-            const url = `http://127.0.0.1/presensipander/api/presensi/index.php?${params.toString()}`;
+            const url = `${getApiBaseUrl()}/presensi/index.php?${params.toString()}`;
             
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -50,7 +51,7 @@ export function useAttendanceData(date?: string, teacherCode?: string, className
  
 export async function saveAttendanceAPI(records: any[]) {
     try {
-        const res = await fetch('http://127.0.0.1/presensipander/api/presensi/index.php', {
+        const res = await fetch(`${getApiBaseUrl()}/presensi/index.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(records)

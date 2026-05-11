@@ -184,7 +184,7 @@ export default function LoginPage() {
                                 { label: "Admin TU", email: "admin.tu@sekolah.id" },
                                 { label: "Admin IT", email: "guru13@sekolah.id" },
                                 { label: "Guru", email: "guru2@sekolah.id" },
-                                { label: "Ortu", email: "hasan@gmail.com" },
+                                { label: "Ortu", email: "1234567890123456" },
                             ].map((cred) => (
                                 <button
                                     key={cred.email}

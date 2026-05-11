@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useRef, useState, useEffect, useMemo } from "react";
+import * as XLSX from "xlsx";
 import {
     Card,
     CardContent,
@@ -36,6 +37,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -81,15 +83,96 @@ import { useKelasData } from "@/hooks/useKelasData";
 import { useAttendanceData } from "@/hooks/useAttendanceData";
 import { useIzinData } from "@/hooks/useIzinData";
 import { useOrtuData } from "@/hooks/useOrtuData";
+import { getApiBaseUrl, getUploadUrl } from "@/lib/api-config";
 import { toast } from "sonner";
+
+const SISWA_IMPORT_HEADERS = [
+    "noInduk",
+    "nisn",
+    "name",
+    "gender",
+    "cls",
+    "tglLahir",
+    "kota",
+    "alamat",
+    "namaAyah",
+    "pekerjaanAyah",
+    "namaIbu",
+    "pekerjaanIbu",
+    "parent",
+    "nik_ortu",
+    "email_ortu",
+    "wa",
+];
+
+const normalizeImportHeader = (header: string) =>
+    header
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "_")
+        .replace(/[^\w]/g, "");
+
+const getImportCellValue = (row: Record<string, unknown>, aliases: string[]) => {
+    for (const alias of aliases) {
+        const value = row[alias];
+        if (value !== undefined && value !== null) return String(value).trim();
+    }
+    return "";
+};
+
+const normalizeNumericText = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (/^\d+(\.0+)?$/.test(trimmed)) return trimmed.replace(/\.0+$/, "");
+
+    const scientific = trimmed.match(/^(\d+(?:\.\d+)?)e\+?(\d+)$/i);
+    if (scientific) {
+        const digits = scientific[1].replace(".", "");
+        const decimals = (scientific[1].split(".")[1] || "").length;
+        const zeroCount = Number(scientific[2]) - decimals;
+        if (zeroCount >= 0) return `${digits}${"0".repeat(zeroCount)}`;
+    }
+
+    return trimmed;
+};
+
+const isScientificNumericText = (value: string) => /^\d+(?:\.\d+)?e\+?\d+$/i.test(value.trim());
+
+const normalizeClassName = (value: string) => {
+    const raw = value.trim().toUpperCase().replace(/^KELAS\s+/, "");
+    if (!raw) return "";
+
+    const compact = raw.replace(/\s+/g, "");
+    const gradeMap: Record<string, string> = {
+        "7": "VII",
+        "VII": "VII",
+        "8": "VIII",
+        "VIII": "VIII",
+        "9": "IX",
+        "IX": "IX",
+    };
+
+    const match = compact.match(/^(VII|VIII|IX|7|8|9)([A-Z])$/);
+    if (match) return `${gradeMap[match[1]]} ${match[2]}`;
+
+    const spacedMatch = raw.match(/^(VII|VIII|IX|7|8|9)\s+([A-Z])$/);
+    if (spacedMatch) return `${gradeMap[spacedMatch[1]]} ${spacedMatch[2]}`;
+
+    return value.trim();
+};
 
 export default function AdminSiswaPage() {
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
     const [searchQuery, setSearchQuery] = useState("");
+    const siswaImportInputRef = useRef<HTMLInputElement | null>(null);
+    const siswaConverterInputRef = useRef<HTMLInputElement | null>(null);
+    const [isImportingSiswa, setIsImportingSiswa] = useState(false);
+    const [selectedSiswaIds, setSelectedSiswaIds] = useState<number[]>([]);
+    const [isBatchDeletingSiswa, setIsBatchDeletingSiswa] = useState(false);
 
     const { siswa: siswaData, loading: siswaLoading, error: siswaError, refetch } = useSiswaData();
     const { kelas: kelasList } = useKelasData();
-    const { ortu: ortuList } = useOrtuData();
+    const { ortu: ortuList, refetch: refetchOrtu } = useOrtuData();
 
     const [isAddSiswaOpen, setIsAddSiswaOpen] = useState(false);
     const [newSiswaNisn, setNewSiswaNisn] = useState("");
@@ -155,6 +238,361 @@ export default function AdminSiswaPage() {
     const [dispFilterStatus, setDispFilterStatus] = useState("ALL");
     const [selectedProofUrl, setSelectedProofUrl] = useState<string | null>(null);
     const [dispProofFile, setDispProofFile] = useState<File | null>(null);
+
+    const findOrtuByNik = (nik: string) => {
+        const normalizedNik = normalizeNumericText(nik || "");
+        return ortuList.find(o => normalizeNumericText(o.nik || "") === normalizedNik);
+    };
+
+    const applyOrtuToNewForm = (nik: string) => {
+        setNewNikOrtu(nik);
+        const selected = findOrtuByNik(nik);
+        if (selected) {
+            setNewOrtuNama(selected.name || "");
+            setNewOrtuWa(selected.phone || "");
+            setNewNamaAyah(selected.namaAyah || "");
+            setNewPekerjaanAyah(selected.pekerjaanAyah || "");
+            setNewNamaIbu(selected.namaIbu || "");
+            setNewPekerjaanIbu(selected.pekerjaanIbu || "");
+        }
+    };
+
+    const applyOrtuToEditForm = (nik: string) => {
+        setEditNikOrtu(nik);
+        const selected = findOrtuByNik(nik);
+        if (selected) {
+            setEditOrtuNama(selected.name || "");
+            setEditOrtuWa(selected.phone || "");
+            setEditNamaAyah(selected.namaAyah || "");
+            setEditPekerjaanAyah(selected.pekerjaanAyah || "");
+            setEditNamaIbu(selected.namaIbu || "");
+            setEditPekerjaanIbu(selected.pekerjaanIbu || "");
+        }
+    };
+
+    const normalizeSiswaImportRow = (row: Record<string, unknown>) => {
+        const normalized = Object.fromEntries(
+            Object.entries(row).map(([key, value]) => [normalizeImportHeader(key), value])
+        );
+
+        const nisn = normalizeNumericText(getImportCellValue(normalized, ["nisn", "nis", "nomor_induk_siswa_nasional"]));
+        const noInduk = normalizeNumericText(getImportCellValue(normalized, ["noinduk", "no_induk", "nomor_induk", "nis"]));
+        const gender = (getImportCellValue(normalized, ["gender", "jk", "jenis_kelamin"]) || "L").toUpperCase();
+        const cls = normalizeClassName(getImportCellValue(normalized, ["cls", "kelas", "class", "rombel"]));
+        const namaAyah = getImportCellValue(normalized, ["namaayah", "nama_ayah", "ayah"]);
+        const pekerjaanAyah = getImportCellValue(normalized, ["pekerjaanayah", "pekerjaan_ayah", "job_ayah"]);
+        const namaIbu = getImportCellValue(normalized, ["namaibu", "nama_ibu", "ibu"]);
+        const pekerjaanIbu = getImportCellValue(normalized, ["pekerjaanibu", "pekerjaan_ibu", "job_ibu"]);
+        const parent = getImportCellValue(normalized, ["parent", "wali", "nama_wali", "nama_ortu", "nama_orang_tua"]) || namaAyah || namaIbu;
+        const rawNikOrtu = getImportCellValue(normalized, ["nik_ortu", "nikortu", "nik_orang_tua", "nik_wali", "nik"]);
+        const nikOrtu = normalizeNumericText(rawNikOrtu);
+        const wa = normalizeNumericText(getImportCellValue(normalized, ["wa", "phone", "no_wa", "nowa", "no_whatsapp", "nowhatsapp", "no_telp", "no_telepon", "telepon"]));
+        const emailOrtu = getImportCellValue(normalized, ["email_ortu", "emailortu", "email_orang_tua", "email_wali", "email"]);
+
+        return {
+            noInduk: noInduk || nisn,
+            nisn,
+            name: getImportCellValue(normalized, ["name", "nama", "nama_siswa"]),
+            gender: gender === "P" ? "P" : "L",
+            cls,
+            tglLahir: getImportCellValue(normalized, ["tgllahir", "tgl_lahir", "tanggal_lahir"]),
+            kota: getImportCellValue(normalized, ["kota", "kota_lahir", "tempat_lahir"]),
+            alamat: getImportCellValue(normalized, ["alamat", "alamat_lengkap"]),
+            namaAyah: namaAyah || "-",
+            pekerjaanAyah: pekerjaanAyah || "-",
+            namaIbu: namaIbu || "-",
+            pekerjaanIbu: pekerjaanIbu || "-",
+            parent: parent || "-",
+            nik_ortu_raw: rawNikOrtu,
+            nik_ortu: nikOrtu || "-",
+            email_ortu: emailOrtu,
+            wa: wa || "-",
+            status: nikOrtu && wa ? "ok" : "fail",
+            tahun_ajaran: selectedTahunAjaran,
+        };
+    };
+
+    const rowsFromFirstSheet = (sheet: XLSX.WorkSheet) => {
+        const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+        const headerIndex = rawRows.findIndex((row) => {
+            const headers = row.map((cell) => normalizeImportHeader(String(cell)));
+            return headers.some(h => ["nisn", "nis", "noinduk", "no_induk"].includes(h)) &&
+                headers.some(h => ["name", "nama", "nama_siswa"].includes(h));
+        });
+
+        if (headerIndex === -1) return null;
+
+        const headers = rawRows[headerIndex].map((cell) => String(cell).trim());
+        return rawRows.slice(headerIndex + 1)
+            .filter((row) => row.some((cell) => String(cell).trim() !== ""))
+            .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
+    };
+
+    const handleImportSiswaFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsImportingSiswa(true);
+        try {
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: "array" });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = rowsFromFirstSheet(sheet);
+
+            if (!rows) {
+                toast.error("Header import tidak ditemukan. Pastikan ada kolom nisn/noInduk dan name/nama.");
+                return;
+            }
+
+            if (rows.length === 0) {
+                toast.error("File import siswa kosong");
+                return;
+            }
+
+            const seenNisn = new Set<string>();
+            const existingSiswaByNisn = new Map(siswaData.map((s) => [normalizeNumericText(s.nisn || ""), s]));
+            const validRows: ReturnType<typeof normalizeSiswaImportRow>[] = [];
+            const updateRows: Array<ReturnType<typeof normalizeSiswaImportRow> & { id: number }> = [];
+            const parentRowsByNik = new Map<string, ReturnType<typeof normalizeSiswaImportRow>>();
+            let missingNisn = 0;
+            let missingName = 0;
+            let missingClass = 0;
+            let missingNikOrtu = 0;
+            let invalidNikOrtu = 0;
+            let scientificNikOrtu = 0;
+            let duplicate = 0;
+            const parentContactByNik = new Map<string, { email?: string; wa?: string }>();
+            const conflictingParentNik = new Set<string>();
+            const mergeParentRow = (
+                current: ReturnType<typeof normalizeSiswaImportRow> | undefined,
+                next: ReturnType<typeof normalizeSiswaImportRow>
+            ) => {
+                if (!current) return next;
+                const preferFilled = (currentValue: string, nextValue: string) =>
+                    currentValue && currentValue !== "-" ? currentValue : nextValue;
+
+                return {
+                    ...current,
+                    parent: preferFilled(current.parent, next.parent),
+                    email_ortu: preferFilled(current.email_ortu, next.email_ortu),
+                    wa: preferFilled(current.wa, next.wa),
+                    namaAyah: preferFilled(current.namaAyah, next.namaAyah),
+                    pekerjaanAyah: preferFilled(current.pekerjaanAyah, next.pekerjaanAyah),
+                    namaIbu: preferFilled(current.namaIbu, next.namaIbu),
+                    pekerjaanIbu: preferFilled(current.pekerjaanIbu, next.pekerjaanIbu),
+                };
+            };
+
+            for (const row of rows) {
+                const data = normalizeSiswaImportRow(row);
+                if (!data.nisn) {
+                    missingNisn++;
+                    continue;
+                }
+                if (!data.name) {
+                    missingName++;
+                    continue;
+                }
+                if (!data.cls) {
+                    missingClass++;
+                    continue;
+                }
+                if (!data.nik_ortu || data.nik_ortu === "-") {
+                    missingNikOrtu++;
+                    continue;
+                }
+                if (isScientificNumericText(data.nik_ortu_raw)) {
+                    scientificNikOrtu++;
+                    continue;
+                }
+                if (!/^\d+$/.test(data.nik_ortu)) {
+                    invalidNikOrtu++;
+                    continue;
+                }
+                const previousContact = parentContactByNik.get(data.nik_ortu) || {};
+                const email = data.email_ortu.trim().toLowerCase();
+                const wa = data.wa !== "-" ? data.wa.trim() : "";
+                if ((previousContact.email && email && previousContact.email !== email) ||
+                    (previousContact.wa && wa && previousContact.wa !== wa)) {
+                    conflictingParentNik.add(data.nik_ortu);
+                    continue;
+                }
+                parentContactByNik.set(data.nik_ortu, {
+                    email: previousContact.email || email || undefined,
+                    wa: previousContact.wa || wa || undefined,
+                });
+                parentRowsByNik.set(data.nik_ortu, mergeParentRow(parentRowsByNik.get(data.nik_ortu), data));
+                if (seenNisn.has(data.nisn)) {
+                    duplicate++;
+                    continue;
+                }
+                seenNisn.add(data.nisn);
+                const existingSiswa = existingSiswaByNisn.get(data.nisn);
+                if (existingSiswa) {
+                    updateRows.push({
+                        ...data,
+                        id: existingSiswa.id,
+                        noInduk: data.noInduk || existingSiswa.noInduk || data.nisn,
+                    });
+                } else {
+                    validRows.push(data);
+                }
+            }
+
+            if (scientificNikOrtu > 0) {
+                toast.error(`${scientificNikOrtu} baris NIK ortu terbaca format scientific seperti 3.57101E+15. Format ulang kolom NIK sebagai Text, isi ulang NIK lengkap, lalu export CSV lagi.`);
+                return;
+            }
+
+            if (conflictingParentNik.size > 0) {
+                toast.error(`${conflictingParentNik.size} NIK ortu dipakai untuk data orang tua yang berbeda. Perbaiki NIK agar setiap keluarga punya NIK unik yang lengkap.`);
+                return;
+            }
+
+            if (validRows.length === 0 && updateRows.length === 0 && parentRowsByNik.size === 0) {
+                toast.error(`Tidak ada baris valid. Kosong NISN: ${missingNisn}, kosong nama: ${missingName}, kosong kelas: ${missingClass}, kosong NIK ortu: ${missingNikOrtu}, NIK ortu salah: ${invalidNikOrtu}, duplikat: ${duplicate}.`);
+                return;
+            }
+
+            const parentPayloads = Array.from(parentRowsByNik.entries()).map(([nik, row]) => ({
+                nik,
+                name: row.parent !== "-" ? row.parent : (row.namaAyah !== "-" ? row.namaAyah : row.namaIbu !== "-" ? row.namaIbu : `Orang Tua ${row.name}`),
+                email: row.email_ortu || null,
+                phone: row.wa !== "-" ? row.wa : null,
+                namaAyah: row.namaAyah !== "-" ? row.namaAyah : null,
+                pekerjaanAyah: row.pekerjaanAyah !== "-" ? row.pekerjaanAyah : null,
+                namaIbu: row.namaIbu !== "-" ? row.namaIbu : null,
+                pekerjaanIbu: row.pekerjaanIbu !== "-" ? row.pekerjaanIbu : null,
+                password: "password123",
+                status: "AKTIF",
+            }));
+
+            const parentRes = await fetch(`${getApiBaseUrl()}/ortu/index.php?action=bulk-upsert`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(parentPayloads),
+            });
+            const parentData = await parentRes.json().catch(() => null);
+            const parentCreated = Number(parentData?.created || 0);
+            const parentUpdated = Number(parentData?.updated || 0);
+            const parentFailed = Number(parentData?.failed || 0);
+
+            if (parentData?.status !== "success") {
+                toast.error(parentData?.message || "Gagal menyiapkan data orang tua dari file import.");
+                return;
+            }
+
+            if (parentFailed > 0) {
+                toast.error(`Import dibatalkan. ${parentFailed} data orang tua gagal diproses, jadi siswa belum dimasukkan agar link ortu tidak putus.`);
+                refetchOrtu();
+                return;
+            }
+
+            let siswaUpdated = 0;
+            let siswaUpdateFailed = 0;
+
+            for (const row of updateRows) {
+                const updateRes = await fetch(`${getApiBaseUrl()}/siswa/index.php`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(row),
+                });
+                const updateData = await updateRes.json().catch(() => null);
+                if (updateData?.status === "success") siswaUpdated++;
+                else siswaUpdateFailed++;
+            }
+
+            if (validRows.length === 0) {
+                const skipped = missingNisn + missingName + missingClass + missingNikOrtu + invalidNikOrtu + duplicate;
+                toast.success(`Link siswa-ortu berhasil disinkronkan. Siswa diperbarui: ${siswaUpdated}, gagal: ${siswaUpdateFailed}. Ortu: ${parentCreated} baru, ${parentUpdated} diperbarui. ${skipped} baris dilewati.`);
+                refetch();
+                refetchOrtu();
+                return;
+            }
+
+            const res = await fetch(`${getApiBaseUrl()}/siswa/index.php`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(validRows),
+            });
+            const data = await res.json();
+
+            if (data.status === "success") {
+                const skipped = missingNisn + missingName + missingClass + missingNikOrtu + invalidNikOrtu + duplicate;
+                toast.success(`${validRows.length} siswa baru diimport, ${siswaUpdated} siswa lama diperbarui. Ortu: ${parentCreated} baru, ${parentUpdated} diperbarui. Gagal update siswa: ${siswaUpdateFailed}. ${skipped} baris dilewati.`);
+                const importedAbjads = validRows.map((row) => row.cls.split(" ")[1]).filter(Boolean);
+                const visibleAbjads = Array.from(new Set([...availableAbjads, ...importedAbjads])).sort();
+                setSearchQuery("");
+                setFilterTingkat("all");
+                setFilterAbjad(visibleAbjads);
+                setTempFilterAbjad(visibleAbjads);
+                refetch();
+                refetchOrtu();
+            } else {
+                toast.error(data.message || "Gagal import siswa");
+            }
+        } catch (error) {
+            toast.error("Gagal membaca file siswa. Gunakan CSV, XLS, atau XLSX dengan header sesuai template.");
+        } finally {
+            setIsImportingSiswa(false);
+            event.target.value = "";
+        }
+    };
+
+    const handleConvertSiswaExcelToCsv = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: "array" });
+            const sheetName = workbook.SheetNames[0];
+            const csv = XLSX.utils.sheet_to_csv(workbook.Sheets[sheetName]);
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            const baseName = file.name.replace(/\.(xlsx|xls)$/i, "");
+
+            link.href = url;
+            link.download = `${baseName || "data_siswa_ortu"}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            toast.success(`Sheet "${sheetName}" berhasil dikonversi ke CSV.`);
+        } catch (error) {
+            toast.error("Gagal mengonversi Excel siswa. Pastikan file berformat XLS atau XLSX.");
+        } finally {
+            event.target.value = "";
+        }
+    };
+
+    const downloadSiswaTemplate = () => {
+        const worksheet = XLSX.utils.json_to_sheet([
+            {
+                noInduk: "SIS-001",
+                nisn: "1000000001",
+                name: "Nama Siswa",
+                gender: "L",
+                cls: "VII A",
+                tglLahir: "2012-02-10",
+                kota: "Jakarta",
+                alamat: "Jl. Contoh No. 1",
+                namaAyah: "Hasan Fauzi",
+                pekerjaanAyah: "Karyawan",
+                namaIbu: "Siti Aminah",
+                pekerjaanIbu: "Ibu Rumah Tangga",
+                parent: "Hasan Fauzi",
+                nik_ortu: "3174000000000001",
+                email_ortu: "hasan@example.com",
+                wa: "081300000001",
+            },
+        ], { header: SISWA_IMPORT_HEADERS });
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "template_siswa_ortu");
+        XLSX.writeFile(workbook, "template_import_siswa_ortu.xlsx");
+    };
 
     const filteredSiswaForDisp = useMemo(() => {
         if (!dispSelectedKelas) return [];
@@ -223,10 +661,31 @@ export default function AdminSiswaPage() {
         const abjad = clsParts[1];
         
         const matchTingkat = filterTingkat === "all" || tingkat === filterTingkat;
-        const matchAbjad = filterAbjad.includes(abjad);
+        const matchAbjad = filterAbjad.length === 0 || !abjad || filterAbjad.includes(abjad);
         
         return matchSearch && matchTingkat && matchAbjad;
     });
+    const filteredSiswaIds = filteredSiswa.map((s) => s.id);
+    const selectedFilteredSiswaIds = selectedSiswaIds.filter((id) => filteredSiswaIds.includes(id));
+    const isAllFilteredSiswaSelected = filteredSiswa.length > 0 && selectedFilteredSiswaIds.length === filteredSiswa.length;
+
+    const toggleSelectAllFilteredSiswa = (checked: boolean) => {
+        setSelectedSiswaIds((current) => {
+            const next = new Set(current);
+            if (checked) {
+                filteredSiswaIds.forEach((id) => next.add(id));
+            } else {
+                filteredSiswaIds.forEach((id) => next.delete(id));
+            }
+            return Array.from(next);
+        });
+    };
+
+    const toggleSelectSiswa = (id: number, checked: boolean) => {
+        setSelectedSiswaIds((current) =>
+            checked ? Array.from(new Set([...current, id])) : current.filter((selectedId) => selectedId !== id)
+        );
+    };
 
     const handleSaveSiswa = () => {
         if (!newSiswaNisn || !newSiswaNama || !newSiswaKelas || !newOrtuNama) {
@@ -255,7 +714,7 @@ export default function AdminSiswaPage() {
             tahun_ajaran: selectedTahunAjaran
         };
         
-        fetch("http://127.0.0.1/presensipander/api/siswa/index.php", {
+        fetch(`${getApiBaseUrl()}/siswa/index.php`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(newSiswa)
@@ -302,18 +761,19 @@ export default function AdminSiswaPage() {
         setEditSiswaNama(s.name);
         setEditSiswaKelas(s.cls);
         setEditSiswaGender(s.gender || "L"); 
-        setEditOrtuNama(s.parent);
-        setEditOrtuWa(s.wa !== "-" ? s.wa : "");
-        setEditNikOrtu(s.nik_ortu || "");
+        const linkedOrtu = findOrtuByNik(s.nik_ortu || "");
+        setEditNikOrtu(linkedOrtu?.nik || s.nik_ortu || "");
+        setEditOrtuNama(linkedOrtu?.name || s.parent);
+        setEditOrtuWa(linkedOrtu?.phone || (s.wa !== "-" ? s.wa : ""));
         
         // Load additional fields
         setEditTglLahir(s.tglLahir || "");
         setEditKota(s.kota || "");
         setEditAlamat(s.alamat || "");
-        setEditNamaAyah(s.namaAyah || "");
-        setEditPekerjaanAyah(s.pekerjaanAyah || "");
-        setEditNamaIbu(s.namaIbu || "");
-        setEditPekerjaanIbu(s.pekerjaanIbu || "");
+        setEditNamaAyah(linkedOrtu?.namaAyah || s.namaAyah || "");
+        setEditPekerjaanAyah(linkedOrtu?.pekerjaanAyah || s.pekerjaanAyah || "");
+        setEditNamaIbu(linkedOrtu?.namaIbu || s.namaIbu || "");
+        setEditPekerjaanIbu(linkedOrtu?.pekerjaanIbu || s.pekerjaanIbu || "");
     };
 
     const handleSaveEditSiswa = () => {
@@ -344,7 +804,7 @@ export default function AdminSiswaPage() {
             tahun_ajaran: selectedTahunAjaran
         };
 
-        fetch(`http://127.0.0.1/presensipander/api/siswa/index.php`, {
+        fetch(`${getApiBaseUrl()}/siswa/index.php`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(updatedSiswa)
@@ -370,7 +830,7 @@ export default function AdminSiswaPage() {
 
     const handleDeleteSiswa = (id: number, name: string) => {
         if (window.confirm(`Apakah Anda yakin ingin menghapus data siswa ${name}? Tindakan ini tidak dapat dibatalkan.`)) {
-            fetch(`http://127.0.0.1/presensipander/api/siswa/index.php?id=${id}`, {
+            fetch(`${getApiBaseUrl()}/siswa/index.php?id=${id}`, {
                 method: 'DELETE'
             })
             .then(res => res.json())
@@ -387,6 +847,37 @@ export default function AdminSiswaPage() {
                 toast.error("Terjadi kesalahan koneksi");
                 console.error(err);
             });
+        }
+    };
+
+    const handleBatchDeleteSiswa = async () => {
+        if (selectedSiswaIds.length === 0 || isBatchDeletingSiswa) return;
+        if (!window.confirm(`Hapus ${selectedSiswaIds.length} data siswa terpilih? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+        setIsBatchDeletingSiswa(true);
+        try {
+            const results = await Promise.allSettled(
+                selectedSiswaIds.map((id) =>
+                    fetch(`${getApiBaseUrl()}/siswa/index.php?id=${id}`, { method: "DELETE" })
+                        .then((res) => res.json())
+                        .then((data) => {
+                            if (data.status !== "success") throw new Error(data.message || "Gagal menghapus siswa");
+                            return data;
+                        })
+                )
+            );
+            const successCount = results.filter((result) => result.status === "fulfilled").length;
+            const failedCount = selectedSiswaIds.length - successCount;
+
+            if (successCount > 0) toast.success(`${successCount} data siswa berhasil dihapus.`);
+            if (failedCount > 0) toast.error(`${failedCount} data siswa gagal dihapus.`);
+
+            setSelectedSiswaIds([]);
+            refetch();
+        } catch (error) {
+            toast.error("Gagal menghapus data siswa terpilih.");
+        } finally {
+            setIsBatchDeletingSiswa(false);
         }
     };
 
@@ -413,7 +904,7 @@ export default function AdminSiswaPage() {
             if (dispProofFile) {
                 const formData = new FormData();
                 formData.append("file", dispProofFile);
-                const uploadRes = await fetch("http://127.0.0.1/presensipander/api/izin/upload.php", {
+                const uploadRes = await fetch(`${getApiBaseUrl()}/izin/upload.php`, {
                     method: "POST",
                     body: formData
                 });
@@ -423,7 +914,7 @@ export default function AdminSiswaPage() {
                 }
             }
 
-            const res = await fetch("http://127.0.0.1/presensipander/api/izin/index.php", {
+            const res = await fetch(`${getApiBaseUrl()}/izin/index.php`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -470,9 +961,31 @@ export default function AdminSiswaPage() {
                     </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
-                    <Button variant="outline" className="w-full sm:w-auto text-slate-600 border-slate-200 hover:bg-slate-50 font-bold">
-                        <Upload className="w-4 h-4 mr-2" />
-                        Import Excel
+                    <Button variant="outline" className="w-full sm:w-auto text-slate-600 border-slate-200 hover:bg-slate-50 font-bold" onClick={downloadSiswaTemplate}>
+                        <FileSpreadsheet className="w-4 h-4 mr-2" />
+                        Template
+                    </Button>
+                    <input
+                        ref={siswaConverterInputRef}
+                        type="file"
+                        accept=".xls,.xlsx"
+                        className="hidden"
+                        onChange={handleConvertSiswaExcelToCsv}
+                    />
+                    <Button variant="outline" className="w-full sm:w-auto text-slate-600 border-slate-200 hover:bg-slate-50 font-bold" onClick={() => siswaConverterInputRef.current?.click()}>
+                        <FileSpreadsheet className="w-4 h-4 mr-2" />
+                        Convert Excel ke CSV
+                    </Button>
+                    <input
+                        ref={siswaImportInputRef}
+                        type="file"
+                        accept=".csv,.xls,.xlsx"
+                        className="hidden"
+                        onChange={handleImportSiswaFile}
+                    />
+                    <Button variant="outline" className="w-full sm:w-auto text-slate-600 border-slate-200 hover:bg-slate-50 font-bold" onClick={() => siswaImportInputRef.current?.click()} disabled={isImportingSiswa}>
+                        {isImportingSiswa ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                        {isImportingSiswa ? "Mengimpor..." : "Import Siswa + Ortu"}
                     </Button>
                     <Dialog open={isAddSiswaOpen} onOpenChange={setIsAddSiswaOpen}>
                         <DialogTrigger asChild>
@@ -583,14 +1096,7 @@ export default function AdminSiswaPage() {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
                                                 <Label htmlFor="ortu">Pilih Akun Orang Tua (Link Database)</Label>
-                                                <Select value={newNikOrtu} onValueChange={(val) => {
-                                                    setNewNikOrtu(val);
-                                                    const selected = ortuList.find(o => o.nik === val);
-                                                    if (selected) {
-                                                        setNewOrtuNama(selected.name);
-                                                        setNewOrtuWa(selected.phone);
-                                                    }
-                                                }}>
+                                                <Select value={newNikOrtu} onValueChange={applyOrtuToNewForm}>
                                                     <SelectTrigger><SelectValue placeholder="Pilih Wali" /></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="-">Belum ada Akun</SelectItem>
@@ -760,6 +1266,18 @@ export default function AdminSiswaPage() {
                                 <div className="text-sm text-slate-500 italic whitespace-nowrap bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
                                     Total: <b className="text-slate-700">{filteredSiswa.length}</b> Siswa Aktif
                                 </div>
+                                {selectedSiswaIds.length > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="bg-red-50 text-red-600 border-red-200 hover:bg-red-100 font-bold"
+                                        onClick={handleBatchDeleteSiswa}
+                                        disabled={isBatchDeletingSiswa}
+                                    >
+                                        {isBatchDeletingSiswa ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                                        Hapus {selectedSiswaIds.length} Terpilih
+                                    </Button>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
@@ -770,6 +1288,13 @@ export default function AdminSiswaPage() {
                             <Table>
                                 <TableHeader className="bg-slate-50">
                                     <TableRow>
+                                        <TableHead className="w-12">
+                                            <Checkbox
+                                                checked={isAllFilteredSiswaSelected ? true : selectedFilteredSiswaIds.length > 0 ? "indeterminate" : false}
+                                                onCheckedChange={(checked) => toggleSelectAllFilteredSiswa(checked === true)}
+                                                aria-label="Pilih semua siswa yang tampil"
+                                            />
+                                        </TableHead>
                                         <TableHead className="font-bold text-[#000080] whitespace-nowrap">No induk</TableHead>
                                         <TableHead className="font-bold text-[#000080] whitespace-nowrap">Nama Siswa</TableHead>
                                         <TableHead className="font-bold text-[#000080] whitespace-nowrap">JK</TableHead>
@@ -785,8 +1310,15 @@ export default function AdminSiswaPage() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredSiswa.map((s, i) => (
-                                        <TableRow key={i} className="hover:bg-slate-50/50">
+                                    {filteredSiswa.map((s) => (
+                                        <TableRow key={s.id} className="hover:bg-slate-50/50">
+                                            <TableCell>
+                                                <Checkbox
+                                                    checked={selectedSiswaIds.includes(s.id)}
+                                                    onCheckedChange={(checked) => toggleSelectSiswa(s.id, checked === true)}
+                                                    aria-label={`Pilih siswa ${s.name}`}
+                                                />
+                                            </TableCell>
                                             <TableCell className="font-medium text-slate-700">{s.noInduk}</TableCell>
                                             <TableCell className="font-bold text-slate-800 whitespace-nowrap">{s.name}</TableCell>
                                             <TableCell className="text-slate-600">
@@ -991,14 +1523,7 @@ export default function AdminSiswaPage() {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-2">
                                                 <Label htmlFor="edit_ortu">Link Akun Orang Tua</Label>
-                                                <Select value={editNikOrtu} onValueChange={(val) => {
-                                                    setEditNikOrtu(val);
-                                                    const selected = ortuList.find(o => o.nik === val);
-                                                    if (selected) {
-                                                        setEditOrtuNama(selected.name);
-                                                        setEditOrtuWa(selected.phone);
-                                                    }
-                                                }}>
+                                                <Select value={editNikOrtu} onValueChange={applyOrtuToEditForm}>
                                                     <SelectTrigger><SelectValue placeholder="Pilih Wali" /></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="-">Belum ada Akun</SelectItem>
@@ -1275,7 +1800,7 @@ export default function AdminSiswaPage() {
                                         </div>
                                     ) : selectedProofUrl && (
                                         <img 
-                                            src={selectedProofUrl.startsWith('http') ? selectedProofUrl : `http://127.0.0.1/presensipander/uploads/${selectedProofUrl}`} 
+                                            src={getUploadUrl(selectedProofUrl)} 
                                             alt="Bukti Lampiran" 
                                             className="max-w-full max-h-[70vh] rounded-lg shadow-lg border border-white"
                                             onError={(e: any) => {
@@ -1291,7 +1816,7 @@ export default function AdminSiswaPage() {
                                             variant="default" 
                                             size="sm" 
                                             className="text-xs font-bold bg-[#000080]"
-                                            onClick={() => window.open(selectedProofUrl.startsWith('http') ? selectedProofUrl : `http://127.0.0.1/presensipander/uploads/${selectedProofUrl}`, '_blank')}
+                                            onClick={() => window.open(getUploadUrl(selectedProofUrl), '_blank')}
                                         >
                                             Buka di Tab Baru
                                         </Button>

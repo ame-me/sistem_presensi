@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 export interface KelasAPI {
     id: number;
@@ -10,7 +11,7 @@ export interface KelasAPI {
     status: string;
 }
 
-const API_BASE_URL = "http://127.0.0.1/presensipander/api";
+const API_BASE_URL = getApiBaseUrl();
 
 export function useKelasData() {
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);

@@ -11,11 +11,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-// Konfigurasi koneksi MySQL ke XAMPP
-$host = "127.0.0.1";
-$db_name = "presensipander_db"; // Sesuai dengan nama database di PHPMyAdmin
-$username = "root"; // Default username XAMPP
-$password = ""; // Default password XAMPP kosong
+// Konfigurasi koneksi MySQL. Env vars dipakai Docker, fallback tetap cocok untuk XAMPP lokal.
+$host = getenv("DB_HOST") ?: "127.0.0.1";
+$db_name = getenv("DB_NAME") ?: "presensipander_db";
+$username = getenv("DB_USER") ?: "root";
+$password = getenv("DB_PASSWORD") ?: "";
 
 try {
     $conn = new PDO("mysql:host=" . $host . ";dbname=" . $db_name, $username, $password);

@@ -7,6 +7,7 @@ import { useGuruData } from "@/hooks/useGuruData";
 import { useSiswaData } from "@/hooks/useSiswaData";
 import { useKelasData } from "@/hooks/useKelasData";
 import { useState, useEffect } from "react";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 export default function AdminITDashboard() {
     const currentUser = useAppStore((s) => s.currentUser);
@@ -19,7 +20,7 @@ export default function AdminITDashboard() {
     useEffect(() => {
         const fetchOrtu = async () => {
             try {
-                const res = await fetch('http://127.0.0.1/presensipander/api/ortu/index.php');
+                const res = await fetch(`${getApiBaseUrl()}/ortu/index.php`);
                 const data = await res.json();
                 if (data.status === 'success') {
                     setOrtuCount(data.data.length);

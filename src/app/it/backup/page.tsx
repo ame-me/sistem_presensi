@@ -21,12 +21,13 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { getApiBaseUrl } from "@/lib/api-config";
 export default function ITBackupPage() {
     const [isCleaning, setIsCleaning] = useState(false);
     const [lastBackup, setLastBackup] = useState("Kemarin, 23:10");
 
     const handleBackup = () => {
-        window.open('http://127.0.0.1/presensipander/api/system/backup.php', '_blank');
+        window.open(`${getApiBaseUrl()}/system/backup.php`, '_blank');
         setLastBackup("Baru saja");
         toast.success("Database berhasil diekspor. File .sql sedang diunduh.");
     };
@@ -34,7 +35,7 @@ export default function ITBackupPage() {
     const handleClean = async () => {
         setIsCleaning(true);
         try {
-            const res = await fetch('http://127.0.0.1/presensipander/api/system/clean.php');
+            const res = await fetch(`${getApiBaseUrl()}/system/clean.php`);
             const data = await res.json();
             if (data.status === 'success') {
                 toast.success(data.message);

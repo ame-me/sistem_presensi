@@ -11,6 +11,7 @@ import { useRuanganData } from "@/hooks/useRuanganData";
 import { useAttendanceData } from "@/hooks/useAttendanceData";
 import { useJadwalData } from "@/hooks/useJadwalData";
 import { useJurnalData } from "@/hooks/useJurnalData";
+import { getApiBaseUrl } from "@/lib/api-config";
 import {
     Card,
     CardContent,
@@ -100,7 +101,7 @@ export default function AdminKelasPage() {
         setIsSaving(true);
         const method = editMode ? "PUT" : "POST";
         const payload = { ...formData, tahun_ajaran: selectedTahunAjaran };
-        fetch("http://127.0.0.1/presensipander/api/kelas/index.php", {
+        fetch(`${getApiBaseUrl()}/kelas/index.php`, {
             method,
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -120,7 +121,7 @@ export default function AdminKelasPage() {
 
     const handleDeleteClass = (id: any, name: string) => {
         if (window.confirm(`Apakah Anda yakin ingin menghapus kelas ${name}?`)) {
-            fetch("http://127.0.0.1/presensipander/api/kelas/index.php", {
+            fetch(`${getApiBaseUrl()}/kelas/index.php`, {
                 method: "DELETE",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id })
@@ -448,7 +449,7 @@ export default function AdminKelasPage() {
                                                         <Button 
                                                             onClick={async () => {
                                                                 try {
-                                                                    await fetch("http://127.0.0.1/presensipander/api/notifikasi/index.php", {
+                                                                    await fetch(`${getApiBaseUrl()}/notifikasi/index.php`, {
                                                                         method: "POST",
                                                                         body: JSON.stringify({
                                                                             type: "REMINDER",

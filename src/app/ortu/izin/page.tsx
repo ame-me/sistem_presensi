@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { useSiswaData } from "@/hooks/useSiswaData";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 export default function OrtuIzinPage() {
     const currentUser = useAppStore((s) => s.currentUser);
@@ -115,7 +116,7 @@ export default function OrtuIzinPage() {
         setSubmitting(true);
 
         try {
-            const response = await fetch('http://127.0.0.1/presensipander/api/izin/index.php', {
+            const response = await fetch(`${getApiBaseUrl()}/izin/index.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

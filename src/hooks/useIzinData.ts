@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { getApiBaseUrl } from '@/lib/api-config';
  
 export function useIzinData(date?: string, status?: string) {
     const [izin, setIzin] = useState<any[]>([]);
@@ -14,7 +15,7 @@ export function useIzinData(date?: string, status?: string) {
             if (date) params.append('date', date);
             if (status) params.append('status', status);
             
-            const url = `http://127.0.0.1/presensipander/api/izin/index.php?${params.toString()}`;
+            const url = `${getApiBaseUrl()}/izin/index.php?${params.toString()}`;
             
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -42,7 +43,7 @@ export function useIzinData(date?: string, status?: string) {
  
 export async function submitIzinAPI(data: any) {
     try {
-        const res = await fetch('http://127.0.0.1/presensipander/api/izin/index.php', {
+        const res = await fetch(`${getApiBaseUrl()}/izin/index.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -56,7 +57,7 @@ export async function submitIzinAPI(data: any) {
  
 export async function reviewIzinAPI(id: number, status: string, notes: string, reviewedBy: string) {
     try {
-        const res = await fetch('http://127.0.0.1/presensipander/api/izin/index.php', {
+        const res = await fetch(`${getApiBaseUrl()}/izin/index.php`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id, status, notes, reviewedBy })

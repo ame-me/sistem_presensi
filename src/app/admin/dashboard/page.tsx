@@ -51,6 +51,7 @@ import { useMapelData } from "@/hooks/useMapelData";
 import { useAttendanceData } from "@/hooks/useAttendanceData";
 import { useIzinData } from "@/hooks/useIzinData";
 import { useJadwalData } from "@/hooks/useJadwalData";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 const DAY_NAMES = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
 
@@ -200,7 +201,7 @@ export default function AdminDashboardPage() {
 
     const handleRemind = async (s: any) => {
         try {
-            const res = await fetch("http://127.0.0.1/presensipander/api/notifikasi/index.php", {
+            const res = await fetch(`${getApiBaseUrl()}/notifikasi/index.php`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

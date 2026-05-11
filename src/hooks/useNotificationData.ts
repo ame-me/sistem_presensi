@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getApiBaseUrl } from '@/lib/api-config';
 
 export function useNotificationData(teacherCode?: string) {
     const [notifications, setNotifications] = useState<any[]>([]);
@@ -8,7 +9,7 @@ export function useNotificationData(teacherCode?: string) {
         if (!teacherCode) return;
         setLoading(true);
         try {
-            const res = await fetch(`http://127.0.0.1/presensipander/api/notifikasi/index.php?teacher=${teacherCode}`);
+            const res = await fetch(`${getApiBaseUrl()}/notifikasi/index.php?teacher=${teacherCode}`);
             const data = await res.json();
             if (data.status === 'success') {
                 setNotifications(data.data);
