@@ -41,8 +41,8 @@ CREATE TABLE IF NOT EXISTS ortu (
 
 CREATE TABLE IF NOT EXISTS siswa (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    noInduk VARCHAR(30) NOT NULL UNIQUE,
-    nisn VARCHAR(30) NOT NULL UNIQUE,
+    noInduk VARCHAR(30) NOT NULL,
+    nisn VARCHAR(30) NOT NULL,
     name VARCHAR(120) NOT NULL,
     gender VARCHAR(2) NOT NULL DEFAULT 'L',
     tglLahir VARCHAR(30) DEFAULT NULL,
@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS siswa (
     status VARCHAR(20) DEFAULT 'ok',
     tahun_ajaran VARCHAR(50) DEFAULT '2025/2026 Genap',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_siswa_noinduk_ta (noInduk, tahun_ajaran),
+    UNIQUE KEY uq_siswa_nisn_ta (nisn, tahun_ajaran),
     INDEX idx_siswa_cls (cls),
     INDEX idx_siswa_nik_ortu (nik_ortu),
     INDEX idx_siswa_tahun (tahun_ajaran)
@@ -68,25 +70,27 @@ CREATE TABLE IF NOT EXISTS siswa (
 CREATE TABLE IF NOT EXISTS kelas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     grade VARCHAR(20) NOT NULL,
-    name VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(50) NOT NULL,
     teacher VARCHAR(120) DEFAULT '-',
     teacher_code VARCHAR(30) DEFAULT NULL,
     count INT DEFAULT 0,
     status VARCHAR(20) DEFAULT 'Aman',
     tahun_ajaran VARCHAR(50) DEFAULT '2025/2026 Genap',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_kelas_name_ta (name, tahun_ajaran),
     INDEX idx_kelas_tahun (tahun_ajaran)
 );
 
 CREATE TABLE IF NOT EXISTS mapel (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    code VARCHAR(30) NOT NULL UNIQUE,
+    code VARCHAR(30) NOT NULL,
     name VARCHAR(120) NOT NULL,
     grade VARCHAR(20) NOT NULL,
     hours INT DEFAULT 0,
     cat VARCHAR(50) DEFAULT 'Umum',
     tahun_ajaran VARCHAR(50) DEFAULT '2025/2026 Genap',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_mapel_code_ta (code, tahun_ajaran),
     INDEX idx_mapel_grade (grade)
 );
 
