@@ -219,3 +219,42 @@ INSERT INTO jadwal (id, day, slot, time_range, class_name, teacher_code, subject
     (2, 'Senin', '2', '07.40 - 08.20', 'VII A', '2', 'MTK7', 'Matematika', 'R-01', '2025/2026 Genap'),
     (3, 'Selasa', '1', '07.00 - 07.40', 'VIII A', '13', 'INF8', 'Informatika', 'LAB-01', '2025/2026 Genap')
 ON DUPLICATE KEY UPDATE teacher_code = VALUES(teacher_code), subject_hint = VALUES(subject_hint), room_code = VALUES(room_code), tahun_ajaran = VALUES(tahun_ajaran);
+
+-- SEED DATA TAMBAHAN UNTUK TAHUN AJARAN LAIN
+
+-- 1. Tambah Tahun Ajaran Lain
+INSERT INTO tahun_ajaran (name, status) VALUES 
+    ('2024/2025 Ganjil', 'inactive'),
+    ('2025/2026 Ganjil', 'inactive')
+ON DUPLICATE KEY UPDATE status = VALUES(status);
+
+-- 2. Data Mapel Berbeda untuk Semester Berbeda
+INSERT INTO mapel (code, name, grade, hours, cat, tahun_ajaran) VALUES
+    -- 2025/2026 Ganjil (Semester sebelumnya di tahun yang sama)
+    ('MTK7-G1', 'Matematika Ganjil', 'VII', 4, 'Umum', '2025/2026 Ganjil'),
+    ('IPA7-G1', 'IPA Ganjil', 'VII', 4, 'Umum', '2025/2026 Ganjil'),
+    -- 2024/2025 Ganjil (Tahun sebelumnya)
+    ('MTK7-OLD', 'Matematika Dasar', 'VII', 3, 'Umum', '2024/2025 Ganjil')
+ON DUPLICATE KEY UPDATE name = VALUES(name), grade = VALUES(grade);
+
+-- 3. Data Kelas untuk Tahun Ajaran Berbeda
+INSERT INTO kelas (grade, name, teacher, teacher_code, count, status, tahun_ajaran) VALUES
+    ('VII', 'VII A', 'Budi Santoso, S.Pd', '2', 2, 'Aman', '2025/2026 Ganjil'),
+    ('VII', 'VII A', 'Veronika Suhartati', '1', 2, 'Aman', '2024/2025 Ganjil')
+ON DUPLICATE KEY UPDATE teacher = VALUES(teacher), teacher_code = VALUES(teacher_code);
+
+-- 4. Data Siswa (Sama di semester berbeda, Beda di tahun ajaran berbeda)
+INSERT INTO siswa (noInduk, nisn, name, gender, tglLahir, kota, alamat, cls, nik_ortu, wa, status, tahun_ajaran) VALUES
+    -- 2025/2026 Ganjil (SISWA YANG SAMA dengan Genap)
+    ('SIS-001', '1000000001', 'Andi Fauzi', 'L', '2012-02-10', 'Jakarta', 'Jl. Melati No. 1', 'VII A', '1234567890123456', '081300000001', 'ok', '2025/2026 Ganjil'),
+    ('SIS-002', '1000000002', 'Maria Lestari', 'P', '2012-05-21', 'Jakarta', 'Jl. Mawar No. 2', 'VII A', '-', '-', 'ok', '2025/2026 Ganjil'),
+    -- 2024/2025 Ganjil (SISWA BERBEDA / Alumni/Tingkat bawah sebelumnya)
+    ('SIS-OLD-01', '9000000001', 'Siswa Alumni 1', 'L', '2011-01-01', 'Bandung', 'Jl. Alumni', 'VII A', '1111222233334444', '081100000001', 'ok', '2024/2025 Ganjil')
+ON DUPLICATE KEY UPDATE name = VALUES(name), cls = VALUES(cls);
+
+-- 5. Data Jadwal Berbeda
+INSERT INTO jadwal (day, slot, time_range, class_name, teacher_code, subject_code, subject_hint, room_code, tahun_ajaran) VALUES
+    -- Jadwal Ganjil (Beda slot/mapel)
+    ('Senin', '1', '07.00 - 07.40', 'VII A', '2', 'MTK7-G1', 'Matematika Ganjil', 'R-01', '2025/2026 Ganjil'),
+    ('Senin', '2', '07.40 - 08.20', 'VII A', '2', 'IPA7-G1', 'IPA Ganjil', 'R-01', '2025/2026 Ganjil')
+ON DUPLICATE KEY UPDATE teacher_code = VALUES(teacher_code);
