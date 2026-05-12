@@ -122,7 +122,7 @@ export default function GuruPresensiPage() {
  
     // Fetch REAL data from database
     const { jadwal: rawJadwal, loading: loadingJadwal } = useJadwalData(currentDayName, undefined, currentUser?.teacherCode);
-    const { siswa: rawSiswa, loading: loadingSiswaData } = useSiswaData(isConfirmed ? selectedClassId : "");
+    const { siswa: rawSiswa, loading: loadingSiswaData } = useSiswaData(isConfirmed ? selectedClassId : "", undefined, undefined, false, undefined, true);
     const { izin: allIzin } = useIzinData();
  
     // Fetch History for "Frequent Late" calculation

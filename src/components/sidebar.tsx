@@ -19,6 +19,7 @@ import {
     Activity,
     Shield,
     Database,
+    CalendarDays,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ const navItems: Record<string, NavItem[]> = {
         { label: "Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
         { label: "Siswa", href: "/admin/siswa", icon: <GraduationCap className="w-5 h-5" /> },
         { label: "Akun Orang Tua", href: "/admin/ortu", icon: <Users className="w-5 h-5" /> },
+        { label: "Tahun Ajaran", href: "/admin/tahun-ajaran", icon: <CalendarDays className="w-5 h-5" /> },
         { label: "Rekap Presensi", href: "/admin/rekap", icon: <ClipboardList className="w-5 h-5" /> },
     ],
     GURU: [

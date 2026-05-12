@@ -15,7 +15,11 @@ export default function HomePage() {
     }
     switch (currentUser.role) {
       case "ADMIN":
+      case "ADMIN_TU":
         router.replace("/admin/dashboard");
+        break;
+      case "ADMIN_IT":
+        router.replace("/it/dashboard");
         break;
       case "GURU":
         router.replace("/guru/dashboard");

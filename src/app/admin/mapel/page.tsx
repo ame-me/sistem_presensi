@@ -101,6 +101,7 @@ export default function AdminMapelPage() {
     const { ruangan: ruanganData } = useRuanganData();
     const { jadwal: dbJadwal, loading: jadwalLoading, refetch: refetchJadwal } = useJadwalData();
     const currentUser = useAppStore(s => s.currentUser);
+    const selectedTahunAjaran = useAppStore(s => s.selectedTahunAjaran);
     const canEditSchedule = currentUser?.role === "ADMIN_IT" || currentUser?.role === "ADMIN_TU" || currentUser?.role === "ADMIN";
 
     // State untuk Edit Jadwal Slot
@@ -189,6 +190,7 @@ export default function AdminMapelPage() {
             grade: newMapelGrade,
             hours: parseInt(newMapelHours) || 0,
             cat: "Umum", // Defaulted since field is removed
+            tahun_ajaran: selectedTahunAjaran,
             teachers: []
         };
 
@@ -217,7 +219,7 @@ export default function AdminMapelPage() {
         fetch(`${getApiBaseUrl()}/mapel/index.php`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(editingMapel)
+            body: JSON.stringify({ ...editingMapel, tahun_ajaran: editingMapel.tahun_ajaran || selectedTahunAjaran })
         }).then(res => res.json()).then(data => {
             if (data.status === "success") {
                 toast.success("Mata pelajaran berhasil diperbarui!");
@@ -250,7 +252,7 @@ export default function AdminMapelPage() {
     };
 
     const handleSaveSlot = async (isNew: boolean = false) => {
-        const data = isNew ? newSlotData : editingSlot;
+        const data = isNew ? { ...newSlotData, tahun_ajaran: selectedTahunAjaran } : { ...editingSlot, tahun_ajaran: editingSlot?.tahun_ajaran || selectedTahunAjaran };
         if (!data.day || !data.slot || !data.class_name) {
             toast.error("Mohon lengkapi Hari, Jam, dan Kelas!");
             return;

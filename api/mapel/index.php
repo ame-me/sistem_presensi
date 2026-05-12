@@ -6,9 +6,16 @@ $requestMethod = $_SERVER["REQUEST_METHOD"];
 switch($requestMethod) {
     case 'GET':
         // Menampilkan daftar mapel
-        $query = "SELECT * FROM mapel ORDER BY grade ASC, name ASC";
+        $tahunAjaran = $_GET['tahun_ajaran'] ?? null;
+        $query = "SELECT * FROM mapel WHERE 1=1";
+        $params = [];
+        if ($tahunAjaran) {
+            $query .= " AND tahun_ajaran = :tahun_ajaran";
+            $params[':tahun_ajaran'] = $tahunAjaran;
+        }
+        $query .= " ORDER BY grade ASC, name ASC";
         $stmt = $conn->prepare($query);
-        $stmt->execute();
+        $stmt->execute($params);
         
         $results = [];
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)){

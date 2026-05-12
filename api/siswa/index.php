@@ -3,12 +3,38 @@ include_once '../config/database.php';
 
 $requestMethod = $_SERVER["REQUEST_METHOD"];
 
+function gradeLevelFromClassName($className) {
+    $className = strtoupper(trim($className ?? ''));
+    if (strpos($className, 'VIII') === 0) return 8;
+    if (strpos($className, 'VII') === 0) return 7;
+    if (strpos($className, 'IX') === 0) return 9;
+    return null;
+}
+
+function refreshClassCount($conn, $className, $tahunAjaran) {
+    if (!$className || !$tahunAjaran) return;
+    $stmt = $conn->prepare("UPDATE kelas SET count = (
+        SELECT COUNT(*) FROM siswa
+        WHERE cls = :student_class_name
+          AND tahun_ajaran = :student_tahun_ajaran
+          AND COALESCE(academic_status, 'AKTIF') = 'AKTIF'
+    ) WHERE name = :kelas_name AND tahun_ajaran = :kelas_tahun_ajaran");
+    $stmt->execute([
+        ':student_class_name' => $className,
+        ':student_tahun_ajaran' => $tahunAjaran,
+        ':kelas_name' => $className,
+        ':kelas_tahun_ajaran' => $tahunAjaran,
+    ]);
+}
+
 switch($requestMethod) {
     case 'GET':
         $class = $_GET['class'] ?? null;
         $parentId = $_GET['parent_id'] ?? null;
         $parentNik = $_GET['parent_nik'] ?? null;
         $tahunAjaran = $_GET['tahun_ajaran'] ?? null;
+        $includeInactive = isset($_GET['include_inactive']) && $_GET['include_inactive'] == '1';
+        $activeOnly = isset($_GET['active_only']) && $_GET['active_only'] == '1';
         
         $query = "SELECT * FROM siswa WHERE 1=1";
             $params = [];
@@ -28,6 +54,14 @@ switch($requestMethod) {
             if ($tahunAjaran) {
                 $query .= " AND tahun_ajaran = :tahun_ajaran";
                 $params[':tahun_ajaran'] = $tahunAjaran;
+            }
+            if ($activeOnly) {
+                $query .= " AND COALESCE(academic_status, 'AKTIF') = 'AKTIF'";
+            } elseif (!$includeInactive) {
+                $query .= " AND COALESCE(academic_status, 'AKTIF') IN ('AKTIF', 'PERLU_PENEMPATAN')";
+            }
+            if (!$includeInactive) {
+                $query .= " AND cls REGEXP '^(VII|VIII|IX)([[:space:]]|$)'";
             }
             
             $query .= " ORDER BY cls ASC, name ASC";
@@ -56,11 +90,12 @@ switch($requestMethod) {
             // Bulk Insert
             $conn->beginTransaction();
             try {
-                $query = "INSERT INTO siswa (noInduk, nisn, name, gender, tglLahir, kota, alamat, namaAyah, pekerjaanAyah, namaIbu, pekerjaanIbu, cls, parent, nik_ortu, wa, status, tahun_ajaran) 
-                          VALUES (:noInduk, :nisn, :name, :gender, :tglLahir, :kota, :alamat, :namaAyah, :pekerjaanAyah, :namaIbu, :pekerjaanIbu, :cls, :parent, :nik_ortu, :wa, :status, :tahun_ajaran)";
+                $query = "INSERT INTO siswa (noInduk, nisn, name, gender, tglLahir, kota, alamat, namaAyah, pekerjaanAyah, namaIbu, pekerjaanIbu, cls, parent, nik_ortu, wa, status, academic_status, previous_cls, min_grade_level, tahun_ajaran) 
+                          VALUES (:noInduk, :nisn, :name, :gender, :tglLahir, :kota, :alamat, :namaAyah, :pekerjaanAyah, :namaIbu, :pekerjaanIbu, :cls, :parent, :nik_ortu, :wa, :status, :academic_status, :previous_cls, :min_grade_level, :tahun_ajaran)";
                 $stmt = $conn->prepare($query);
                 
                 foreach ($data as $row) {
+                    $tahun = $row['tahun_ajaran'] ?? '2024/2025 Ganjil';
                     $stmt->execute([
                         ':noInduk' => $row['noInduk'] ?? $row['nisn'],
                         ':nisn' => $row['nisn'],
@@ -78,8 +113,12 @@ switch($requestMethod) {
                         ':nik_ortu' => $row['nik_ortu'] ?? '-',
                         ':wa' => $row['wa'] ?? '-',
                         ':status' => $row['status'] ?? 'ok',
-                        ':tahun_ajaran' => $row['tahun_ajaran'] ?? '2024/2025 Ganjil'
+                        ':academic_status' => $row['academic_status'] ?? 'AKTIF',
+                        ':previous_cls' => $row['previous_cls'] ?? null,
+                        ':min_grade_level' => $row['min_grade_level'] ?? null,
+                        ':tahun_ajaran' => $tahun
                     ]);
+                    refreshClassCount($conn, $row['cls'] ?? '', $tahun);
                 }
                 $conn->commit();
                 echo json_encode(["status" => "success", "message" => count($data) . " siswa berhasil diimport"]);
@@ -90,11 +129,12 @@ switch($requestMethod) {
             }
         } elseif(!empty($data['nisn']) && !empty($data['name'])) {
             // Single Insert
-            $query = "INSERT INTO siswa (noInduk, nisn, name, gender, tglLahir, kota, alamat, namaAyah, pekerjaanAyah, namaIbu, pekerjaanIbu, cls, parent, nik_ortu, wa, status, tahun_ajaran) 
-                      VALUES (:noInduk, :nisn, :name, :gender, :tglLahir, :kota, :alamat, :namaAyah, :pekerjaanAyah, :namaIbu, :pekerjaanIbu, :cls, :parent, :nik_ortu, :wa, :status, :tahun_ajaran)";
+            $query = "INSERT INTO siswa (noInduk, nisn, name, gender, tglLahir, kota, alamat, namaAyah, pekerjaanAyah, namaIbu, pekerjaanIbu, cls, parent, nik_ortu, wa, status, academic_status, previous_cls, min_grade_level, tahun_ajaran) 
+                      VALUES (:noInduk, :nisn, :name, :gender, :tglLahir, :kota, :alamat, :namaAyah, :pekerjaanAyah, :namaIbu, :pekerjaanIbu, :cls, :parent, :nik_ortu, :wa, :status, :academic_status, :previous_cls, :min_grade_level, :tahun_ajaran)";
             $stmt = $conn->prepare($query);
             
             try {
+                $tahun = $data['tahun_ajaran'] ?? '2024/2025 Ganjil';
                 $stmt->execute([
                     ':noInduk' => $data['noInduk'] ?? $data['nisn'],
                     ':nisn' => $data['nisn'],
@@ -112,8 +152,12 @@ switch($requestMethod) {
                     ':nik_ortu' => $data['nik_ortu'] ?? '-',
                     ':wa' => $data['wa'] ?? '-',
                     ':status' => $data['status'] ?? 'ok',
-                    ':tahun_ajaran' => $data['tahun_ajaran'] ?? '2024/2025 Ganjil'
+                    ':academic_status' => $data['academic_status'] ?? 'AKTIF',
+                    ':previous_cls' => $data['previous_cls'] ?? null,
+                    ':min_grade_level' => $data['min_grade_level'] ?? null,
+                    ':tahun_ajaran' => $tahun
                 ]);
+                refreshClassCount($conn, $data['cls'] ?? '', $tahun);
                 echo json_encode(["status" => "success", "message" => "Siswa berhasil ditambahkan", "id" => $conn->lastInsertId()]);
             } catch(PDOException $e) {
                 http_response_code(400);
@@ -130,6 +174,22 @@ switch($requestMethod) {
         $id = $_GET['id'] ?? $data['id'] ?? null;
         
         if($id && !empty($data['name'])) {
+            $oldStmt = $conn->prepare("SELECT cls, tahun_ajaran, academic_status, previous_cls, min_grade_level FROM siswa WHERE id = :id");
+            $oldStmt->execute([':id' => $id]);
+            $old = $oldStmt->fetch(PDO::FETCH_ASSOC);
+            if (!$old) {
+                http_response_code(404);
+                echo json_encode(["status" => "error", "message" => "Data siswa tidak ditemukan"]);
+                break;
+            }
+
+            $academicStatus = $data['academic_status'] ?? ($old['academic_status'] ?? 'AKTIF');
+            $minGradeLevel = $data['min_grade_level'] ?? ($old['min_grade_level'] ?? null);
+            $targetGradeLevel = gradeLevelFromClassName($data['cls'] ?? '');
+            if ($academicStatus === 'PERLU_PENEMPATAN' && $minGradeLevel && $targetGradeLevel && $targetGradeLevel >= (int) $minGradeLevel) {
+                $academicStatus = 'AKTIF';
+            }
+
             $query = "UPDATE siswa SET 
                         noInduk = :noInduk,
                         nisn = :nisn, 
@@ -147,6 +207,9 @@ switch($requestMethod) {
                         nik_ortu = :nik_ortu, 
                         wa = :wa, 
                         status = :status,
+                        academic_status = :academic_status,
+                        previous_cls = :previous_cls,
+                        min_grade_level = :min_grade_level,
                         tahun_ajaran = :tahun_ajaran
                       WHERE id = :id";
             $stmt = $conn->prepare($query);
@@ -169,9 +232,14 @@ switch($requestMethod) {
                     ':nik_ortu' => $data['nik_ortu'] ?? '-',
                     ':wa' => $data['wa'] ?? '-',
                     ':status' => $data['status'] ?? 'ok',
+                    ':academic_status' => $academicStatus,
+                    ':previous_cls' => $data['previous_cls'] ?? ($old['previous_cls'] ?? null),
+                    ':min_grade_level' => $minGradeLevel,
                     ':tahun_ajaran' => $data['tahun_ajaran'] ?? '2025/2026 Genap',
                     ':id' => $id
                 ]);
+                refreshClassCount($conn, $old['cls'] ?? '', $old['tahun_ajaran'] ?? '');
+                refreshClassCount($conn, $data['cls'] ?? '', $data['tahun_ajaran'] ?? '2025/2026 Genap');
                 echo json_encode(["status" => "success", "message" => "Data siswa berhasil diperbarui"]);
             } catch(PDOException $e) {
                 http_response_code(400);

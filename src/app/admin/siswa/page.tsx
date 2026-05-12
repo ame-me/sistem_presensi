@@ -152,13 +152,21 @@ const normalizeClassName = (value: string) => {
         "IX": "IX",
     };
 
-    const match = compact.match(/^(VII|VIII|IX|7|8|9)([A-Z])$/);
+    const match = compact.match(/^(VIII|VII|IX|8|7|9)([A-Z])$/);
     if (match) return `${gradeMap[match[1]]} ${match[2]}`;
 
-    const spacedMatch = raw.match(/^(VII|VIII|IX|7|8|9)\s+([A-Z])$/);
+    const spacedMatch = raw.match(/^(VIII|VII|IX|8|7|9)\s+([A-Z])$/);
     if (spacedMatch) return `${gradeMap[spacedMatch[1]]} ${spacedMatch[2]}`;
 
     return value.trim();
+};
+
+const getClassGradeLevel = (value?: string | null) => {
+    const upper = (value || "").toUpperCase().trim();
+    if (upper.startsWith("VIII")) return 8;
+    if (upper.startsWith("VII")) return 7;
+    if (upper.startsWith("IX")) return 9;
+    return 0;
 };
 
 const formatExcelDate = (value: string) => {
@@ -675,6 +683,16 @@ export default function AdminSiswaPage() {
     // Ambil daftar abjad unik dari database (A, B, C...)
     const availableAbjads = Array.from(new Set(kelasList.map(k => k.name.split(" ").slice(-1)[0]))).sort();
     const availableTingkats = Array.from(new Set(kelasList.map(k => k.grade))).sort();
+    const classOptions = useMemo(
+        () => [...kelasList]
+            .filter((kelas) => getClassGradeLevel(kelas.name) > 0)
+            .sort((a, b) => getClassGradeLevel(a.name) - getClassGradeLevel(b.name) || a.name.localeCompare(b.name)),
+        [kelasList]
+    );
+    const editClassOptions = useMemo(() => {
+        const minGrade = Number(editSiswa?.min_grade_level || 0);
+        return classOptions.filter((k) => !minGrade || getClassGradeLevel(k.name) >= minGrade);
+    }, [classOptions, editSiswa]);
 
     useEffect(() => {
         if (kelasList.length > 0) {
@@ -831,6 +849,9 @@ export default function AdminSiswaPage() {
             pekerjaanIbu: editPekerjaanIbu,
             nik_ortu: editNikOrtu,
             status: editOrtuWa && editOrtuWa.length > 5 ? "ok" : "fail",
+            academic_status: editSiswa.academic_status,
+            previous_cls: editSiswa.previous_cls,
+            min_grade_level: editSiswa.min_grade_level,
             tahun_ajaran: selectedTahunAjaran
         };
 
@@ -1052,21 +1073,9 @@ export default function AdminSiswaPage() {
                                                 <Select value={newSiswaKelas} onValueChange={setNewSiswaKelas}>
                                                     <SelectTrigger><SelectValue placeholder="Pilih Kelas" /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="VII A">VII A</SelectItem>
-                                                        <SelectItem value="VII B">VII B</SelectItem>
-                                                        <SelectItem value="VII C">VII C</SelectItem>
-                                                        <SelectItem value="VII D">VII D</SelectItem>
-                                                        <SelectItem value="VII E">VII E</SelectItem>
-                                                        <SelectItem value="VIII A">VIII A</SelectItem>
-                                                        <SelectItem value="VIII B">VIII B</SelectItem>
-                                                        <SelectItem value="VIII C">VIII C</SelectItem>
-                                                        <SelectItem value="VIII D">VIII D</SelectItem>
-                                                        <SelectItem value="VIII E">VIII E</SelectItem>
-                                                        <SelectItem value="IX A">IX A</SelectItem>
-                                                        <SelectItem value="IX B">IX B</SelectItem>
-                                                        <SelectItem value="IX C">IX C</SelectItem>
-                                                        <SelectItem value="IX D">IX D</SelectItem>
-                                                        <SelectItem value="IX E">IX E</SelectItem>
+                                                        {classOptions.map(k => (
+                                                            <SelectItem key={k.id} value={k.name}>{k.name}</SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -1488,14 +1497,16 @@ export default function AdminSiswaPage() {
                                                 <Select value={editSiswaKelas} onValueChange={setEditSiswaKelas}>
                                                     <SelectTrigger><SelectValue placeholder="Pilih Kelas" /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="VII A">VII A</SelectItem>
-                                                        <SelectItem value="VII B">VII B</SelectItem>
-                                                        <SelectItem value="VIII A">VIII A</SelectItem>
-                                                        <SelectItem value="VIII B">VIII B</SelectItem>
-                                                        <SelectItem value="IX A">IX A</SelectItem>
-                                                        <SelectItem value="IX B">IX B</SelectItem>
+                                                        {editClassOptions.map(k => (
+                                                            <SelectItem key={k.id} value={k.name}>{k.name}</SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
+                                                {editSiswa?.academic_status === "PERLU_PENEMPATAN" && (
+                                                    <p className="text-xs font-medium text-amber-600">
+                                                        Siswa naik dari {editSiswa.previous_cls || "-"}; kelas di bawah tingkat baru dikunci.
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className="space-y-2">
                                                 <Label htmlFor="edit_gender">Jenis Kelamin</Label>

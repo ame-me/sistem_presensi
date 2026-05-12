@@ -19,9 +19,13 @@ export interface SiswaAPI {
     pekerjaanAyah?: string;
     namaIbu?: string;
     pekerjaanIbu?: string;
+    academic_status?: "AKTIF" | "PERLU_PENEMPATAN" | "LULUS" | "NONAKTIF";
+    previous_cls?: string | null;
+    min_grade_level?: number | null;
+    tahun_ajaran?: string;
 }
 
-export function useSiswaData(className?: string, parentId?: string, parentNik?: string) {
+export function useSiswaData(className?: string, parentId?: string, parentNik?: string, includeInactive = false, tahunAjaranOverride?: string, activeOnly = false) {
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
     const [siswa, setSiswa] = useState<SiswaAPI[]>([]);
     const [loading, setLoading] = useState(true);
@@ -36,7 +40,10 @@ export function useSiswaData(className?: string, parentId?: string, parentNik?: 
             if (className) params.append('class', className);
             if (parentId) params.append('parent_id', parentId);
             if (parentNik) params.append('parent_nik', parentNik);
-            if (selectedTahunAjaran) params.append('tahun_ajaran', selectedTahunAjaran);
+            const targetTahun = tahunAjaranOverride || selectedTahunAjaran;
+            if (targetTahun) params.append('tahun_ajaran', targetTahun);
+            if (includeInactive) params.append('include_inactive', '1');
+            if (activeOnly) params.append('active_only', '1');
             
             const url = `${getApiBaseUrl()}/siswa/index.php?${params.toString()}`;
             
@@ -49,13 +56,13 @@ export function useSiswaData(className?: string, parentId?: string, parentNik?: 
             } else {
                 throw new Error(data.message || 'Gagal mengambil data siswa');
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Failed to fetch siswa', err);
-            setError(err.message || 'Gagal mengambil data siswa. Pastikan server Apache (XAMPP) menyala.');
+            setError(err instanceof Error ? err.message : 'Gagal mengambil data siswa. Pastikan server Apache (XAMPP) menyala.');
         } finally {
             setLoading(false);
         }
-    }, [className, parentId, parentNik, selectedTahunAjaran]);
+    }, [className, parentId, parentNik, selectedTahunAjaran, includeInactive, tahunAjaranOverride, activeOnly]);
 
     useEffect(() => {
         fetchSiswa();

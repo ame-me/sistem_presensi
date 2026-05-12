@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
     Dialog,
     DialogContent,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
@@ -29,7 +30,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Check, X, Eye, FileText, CheckCircle2, XCircle, FileImage, AlertCircle } from "lucide-react";
+import { Check, X, Eye, FileText, CheckCircle2, XCircle, FileImage, AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 type FilterStatus = "ALL" | "PENDING" | "APPROVED" | "REJECTED";
