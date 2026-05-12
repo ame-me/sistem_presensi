@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useGuruData } from "@/hooks/useGuruData";
 import { getApiBaseUrl } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
@@ -40,10 +40,22 @@ import {
     Lock
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAppStore } from "@/lib/store";
+import {
+    ACCESS_ROLES,
+    APP_PAGES,
+    LOCKED_ACCESS_ROUTES,
+    mergeAccessMatrix,
+    type AccessLevel,
+    type AccessRole,
+} from "@/lib/access-control";
 
 export default function ITUsersPage() {
     const { guru, loading, error, refetch } = useGuruData();
     const API_BASE_URL = getApiBaseUrl();
+    const accessMatrix = useAppStore((s) => s.accessMatrix);
+    const setPageAccess = useAppStore((s) => s.setPageAccess);
+    const resetAccessMatrix = useAppStore((s) => s.resetAccessMatrix);
     const [searchTerm, setSearchTerm] = useState("");
     const [resetDialogOpen, setResetDialogOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -154,6 +166,23 @@ export default function ITUsersPage() {
         refetch();
     };
 
+    const effectiveAccessMatrix = mergeAccessMatrix(accessMatrix);
+    const pageSections = APP_PAGES.reduce<Record<string, typeof APP_PAGES>>((acc, page) => {
+        if (!acc[page.section]) acc[page.section] = [];
+        acc[page.section].push(page);
+        return acc;
+    }, {});
+
+    const handleChangePageAccess = async (role: AccessRole, path: string, level: AccessLevel) => {
+        if (role === "ADMIN_IT" && LOCKED_ACCESS_ROUTES.has(path)) return;
+        try {
+            await setPageAccess(role, path, level);
+            toast.success("Matriks akses tersimpan.");
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Gagal menyimpan matriks akses");
+        }
+    };
+
     return (
         <div className="space-y-8 font-sans pb-20">
             {/* Header */}
@@ -174,6 +203,93 @@ export default function ITUsersPage() {
                     <UserPlus className="w-5 h-5 mr-2" /> Tambah User Baru
                 </Button>
             </div>
+
+            <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
+                <CardHeader className="bg-slate-50/50 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <div>
+                        <CardTitle className="text-[#000080] text-lg font-bold flex items-center gap-2">
+                            <Shield className="w-5 h-5" />
+                            Matriks Akses Sidebar
+                        </CardTitle>
+                        <CardDescription>
+                            Atur level akses halaman yang muncul di sidebar: none, view only, atau full CRUD.
+                        </CardDescription>
+                    </div>
+                    <Button
+                        variant="outline"
+                        onClick={async () => {
+                            try {
+                                await resetAccessMatrix();
+                                toast.success("Matriks akses dikembalikan ke default.");
+                            } catch (error) {
+                                toast.error(error instanceof Error ? error.message : "Gagal reset matriks akses");
+                            }
+                        }}
+                        className="font-bold rounded-xl"
+                    >
+                        <RefreshCw className="w-4 h-4 mr-2" />
+                        Reset Default
+                    </Button>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase">
+                                <tr>
+                                    <th className="px-6 py-4 text-left whitespace-nowrap text-[10px] tracking-wider min-w-[260px]">Halaman</th>
+                                    {ACCESS_ROLES.map((role) => (
+                                        <th key={role.key} className="px-4 py-4 text-center whitespace-nowrap text-[10px] tracking-wider">
+                                            {role.label}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {Object.entries(pageSections).map(([section, pages]) => (
+                                    <Fragment key={section}>
+                                        <tr className="bg-slate-50/60">
+                                            <td colSpan={ACCESS_ROLES.length + 1} className="px-6 py-3 text-[10px] font-black uppercase tracking-widest text-[#000080]">
+                                                {section}
+                                            </td>
+                                        </tr>
+                                        {pages.map((page) => (
+                                            <tr key={page.path} className="hover:bg-slate-50/40">
+                                                <td className="px-6 py-4">
+                                                    <p className="font-bold text-slate-700">{page.label}</p>
+                                                    <p className="text-[10px] font-mono text-slate-400">{page.path}</p>
+                                                </td>
+                                                {ACCESS_ROLES.map((role) => {
+                                                    const locked = role.key === "ADMIN_IT" && LOCKED_ACCESS_ROUTES.has(page.path);
+                                                    const level = locked ? "full" : (effectiveAccessMatrix[role.key]?.[page.path] || "none");
+
+                                                    return (
+                                                        <td key={`${role.key}-${page.path}`} className="px-4 py-4">
+                                                            <Select
+                                                                value={level}
+                                                                disabled={locked}
+                                                                onValueChange={(value) => handleChangePageAccess(role.key, page.path, value as AccessLevel)}
+                                                            >
+                                                                <SelectTrigger className="h-9 min-w-[108px] rounded-xl bg-white text-xs font-bold">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="none">None</SelectItem>
+                                                                    <SelectItem value="view">View Only</SelectItem>
+                                                                    <SelectItem value="full">Full</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </Fragment>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
 
             <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
                 <CardHeader className="bg-slate-50/50 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -327,8 +443,9 @@ export default function ITUsersPage() {
                                     <SelectItem value="Guru Mapel">Guru Mapel</SelectItem>
                                     <SelectItem value="Wali Kelas">Wali Kelas</SelectItem>
                                     <SelectItem value="Guru BK">Guru BK / Konseling</SelectItem>
-                                    <SelectItem value="ADMIN">Administrator IT</SelectItem>
+                                    <SelectItem value="ADMIN_IT">Administrator IT</SelectItem>
                                     <SelectItem value="ADMIN_TU">Admin TU</SelectItem>
+                                    <SelectItem value="ADMIN">Kepala Sekolah</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -369,8 +486,9 @@ export default function ITUsersPage() {
                                     <SelectItem value="Guru Mapel">Guru Mapel</SelectItem>
                                     <SelectItem value="Wali Kelas">Wali Kelas</SelectItem>
                                     <SelectItem value="Guru BK">Guru BK / Konseling</SelectItem>
-                                    <SelectItem value="ADMIN">Administrator IT</SelectItem>
+                                    <SelectItem value="ADMIN_IT">Administrator IT</SelectItem>
                                     <SelectItem value="ADMIN_TU">Admin TU</SelectItem>
+                                    <SelectItem value="ADMIN">Kepala Sekolah</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

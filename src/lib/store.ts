@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { fetchAccessMatrixFromServer, saveAccessMatrixToServer } from "@/lib/access-api";
+import { DEFAULT_ACCESS_MATRIX, mergeAccessMatrix, type AccessLevel, type AccessMatrix, type AccessRole } from "@/lib/access-control";
 
 // ==================
 // TYPES
@@ -166,6 +168,14 @@ interface AppState {
     selectedTahunAjaran: string | null;
     setSelectedTahunAjaran: (tahun: string) => void;
 
+    // Access Control
+    accessMatrix: AccessMatrix;
+    accessMatrixLoaded: boolean;
+    accessMatrixError: string | null;
+    fetchAccessMatrix: () => Promise<void>;
+    setPageAccess: (role: AccessRole, path: string, level: AccessLevel) => Promise<void>;
+    resetAccessMatrix: () => Promise<void>;
+
     // Ortu Selection
     selectedChildId: string | null;
     setSelectedChildId: (id: string | null) => void;
@@ -190,6 +200,61 @@ export const useAppStore = create<AppState>()(
             currentUser: null,
             selectedTahunAjaran: null,
             setSelectedTahunAjaran: (tahun) => set({ selectedTahunAjaran: tahun }),
+            accessMatrix: DEFAULT_ACCESS_MATRIX,
+            accessMatrixLoaded: false,
+            accessMatrixError: null,
+            fetchAccessMatrix: async () => {
+                try {
+                    const accessMatrix = await fetchAccessMatrixFromServer();
+                    set({ accessMatrix, accessMatrixLoaded: true, accessMatrixError: null });
+                } catch (error) {
+                    console.error("Access matrix load error", error);
+                    set({
+                        accessMatrix: mergeAccessMatrix(get().accessMatrix),
+                        accessMatrixLoaded: true,
+                        accessMatrixError: error instanceof Error ? error.message : "Gagal memuat matriks akses",
+                    });
+                }
+            },
+            setPageAccess: async (role, path, level) => {
+                const previousMatrix = get().accessMatrix;
+                const nextMatrix = mergeAccessMatrix({
+                    ...previousMatrix,
+                    [role]: {
+                        ...previousMatrix[role],
+                        [path]: level,
+                    },
+                });
+
+                set({ accessMatrix: nextMatrix });
+
+                try {
+                    const savedMatrix = await saveAccessMatrixToServer(nextMatrix);
+                    set({ accessMatrix: savedMatrix, accessMatrixLoaded: true, accessMatrixError: null });
+                } catch (error) {
+                    set({
+                        accessMatrix: previousMatrix,
+                        accessMatrixError: error instanceof Error ? error.message : "Gagal menyimpan matriks akses",
+                    });
+                    throw error;
+                }
+            },
+            resetAccessMatrix: async () => {
+                const previousMatrix = get().accessMatrix;
+                const nextMatrix = mergeAccessMatrix(DEFAULT_ACCESS_MATRIX);
+                set({ accessMatrix: nextMatrix });
+
+                try {
+                    const savedMatrix = await saveAccessMatrixToServer(nextMatrix);
+                    set({ accessMatrix: savedMatrix, accessMatrixLoaded: true, accessMatrixError: null });
+                } catch (error) {
+                    set({
+                        accessMatrix: previousMatrix,
+                        accessMatrixError: error instanceof Error ? error.message : "Gagal menyimpan matriks akses",
+                    });
+                    throw error;
+                }
+            },
             selectedChildId: null,
             setSelectedChildId: (id) => set({ selectedChildId: id }),
             login: (email: string, password: string) => {
@@ -302,7 +367,8 @@ export const useAppStore = create<AppState>()(
             partialize: (state) => ({ 
                 currentUser: state.currentUser, 
                 selectedTahunAjaran: state.selectedTahunAjaran,
-                selectedChildId: state.selectedChildId
+                selectedChildId: state.selectedChildId,
+                accessMatrix: state.accessMatrix
             }),
         }
     )

@@ -145,7 +145,6 @@ function filterStudentsByClass(students: SiswaManageItem[], gradeFilter: string,
 }
 
 export default function AdminTahunAjaranPage() {
-    const currentUser = useAppStore((s) => s.currentUser);
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
     const setSelectedTahunAjaran = useAppStore((s) => s.setSelectedTahunAjaran);
     const [periods, setPeriods] = useState<TahunAjaranItem[]>([]);
@@ -363,17 +362,6 @@ export default function AdminTahunAjaranPage() {
             setSavingStudentId(null);
         }
     };
-
-    if (currentUser?.role !== "ADMIN_TU") {
-        return (
-            <Card className="max-w-2xl border-slate-200 bg-white">
-                <CardHeader>
-                    <CardTitle className="text-[#000080]">Akses Terbatas</CardTitle>
-                    <CardDescription>Menu tahun ajaran hanya tersedia untuk Admin Tata Usaha.</CardDescription>
-                </CardHeader>
-            </Card>
-        );
-    }
 
     return (
         <div className="space-y-6 pb-20">

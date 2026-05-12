@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import * as xlsx from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
@@ -38,17 +39,20 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PenSquare, Trash2, Plus, FileSpreadsheet, Building2, Loader2, RefreshCcw, Clock } from "lucide-react";
+import { PenSquare, Trash2, Plus, FileSpreadsheet, Building2, Loader2, RefreshCcw, Clock, School, Eye } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useRuanganData } from "@/hooks/useRuanganData";
 import { useGuruData } from "@/hooks/useGuruData";
 import { useJadwalData } from "@/hooks/useJadwalData";
 import { getApiBaseUrl } from "@/lib/api-config";
+import { canAccessPage, getPageAccessLevel } from "@/lib/access-control";
 
 const DAY_NAMES = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
 export default function AdminRuanganPage() {
     const currentUser = useAppStore(s => s.currentUser);
-    const isKepalaSekolah = currentUser?.teacherCode === "1";
+    const accessMatrix = useAppStore(s => s.accessMatrix);
+    const canManageRuangan = getPageAccessLevel(currentUser, "/admin/ruangan", accessMatrix) === "full";
+    const canAccessKelas = canAccessPage(currentUser, "/admin/kelas", accessMatrix);
     const { ruangan: rooms, refetch: refetchRooms } = useRuanganData();
     const { guru: teachers, refetch: refetchTeachers } = useGuruData();
 
@@ -164,9 +168,9 @@ export default function AdminRuanganPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-extrabold text-[#000080] tracking-tight">Manajemen Ruangan</h1>
+                    <h1 className="text-3xl font-extrabold text-[#000080] tracking-tight">Daftar Kelas & Ruangan</h1>
                     <p className="text-slate-500 font-medium mt-1">
-                        Kelola data ruangan fisik sekolah sebagai penanggung jawab kegiatan pembelajaran.
+                        Pusat kendali data kelas, ruangan, dan monitoring presensi SIPANDU.
                     </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
@@ -174,7 +178,7 @@ export default function AdminRuanganPage() {
                         <FileSpreadsheet className="w-4 h-4 mr-2" />
                         Export Data
                     </Button>
-                    {!isKepalaSekolah && (
+                    {canManageRuangan && (
                         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button onClick={() => handleOpenDialog()} className="w-full sm:w-auto bg-[#000080] hover:bg-[#000060] text-white font-bold shadow-md">
@@ -249,6 +253,31 @@ export default function AdminRuanganPage() {
                         </Dialog>
                     )}
                 </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm w-full grid grid-cols-1 md:grid-cols-3 h-auto md:h-11 overflow-hidden">
+                {canAccessKelas && (
+                    <Link
+                        href="/admin/kelas"
+                        className="inline-flex items-center justify-center px-6 font-bold h-11 text-sm text-slate-600 hover:text-[#000080] hover:bg-slate-50"
+                    >
+                        <School className="w-4 h-4 mr-2" />
+                        Daftar Kelas
+                    </Link>
+                )}
+                <div className="inline-flex items-center justify-center px-6 font-bold h-11 text-sm bg-[#000080] text-white">
+                    <Building2 className="w-4 h-4 mr-2" />
+                    Manajemen Ruangan
+                </div>
+                {canAccessKelas && (
+                    <Link
+                        href="/admin/kelas?tab=monitor"
+                        className="inline-flex items-center justify-center px-6 font-bold h-11 text-sm text-slate-600 hover:text-[#000080] hover:bg-slate-50"
+                    >
+                        <Eye className="w-4 h-4 mr-2" />
+                        Monitoring (Real-Time)
+                    </Link>
+                )}
             </div>
 
             <Card className="border-slate-200 bg-white shadow-md rounded-2xl overflow-hidden">
@@ -332,7 +361,7 @@ export default function AdminRuanganPage() {
                                 <TableHead className="font-bold text-[#000080]">Lokasi</TableHead>
                                 <TableHead className="font-bold text-[#000080]">Penanggung Jawab</TableHead>
                                 <TableHead className="font-bold text-[#000080]">Status</TableHead>
-                                {!isKepalaSekolah && <TableHead className="font-bold text-[#000080] text-right">Aksi</TableHead>}
+                                {canManageRuangan && <TableHead className="font-bold text-[#000080] text-right">Aksi</TableHead>}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -395,7 +424,7 @@ export default function AdminRuanganPage() {
                                                  </div>
                                             )}
                                         </TableCell>
-                                        {!isKepalaSekolah && (
+                                        {canManageRuangan && (
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-2">
                                                     <Button onClick={() => handleOpenDialog(room)} size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50">

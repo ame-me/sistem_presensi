@@ -49,19 +49,6 @@ export default function GuruWaliKelasPage() {
     const [showAttentionOnly, setShowAttentionOnly] = useState(false);
     const [isPrintingIndividual, setIsPrintingIndividual] = useState(false);
 
-    useEffect(() => {
-        const isTeacher = currentUser && (
-            currentUser.role.includes("GURU") || 
-            currentUser.role.includes("WALI") || 
-            currentUser.role.includes("KELAS") ||
-            currentUser.role === "ADMIN"
-        );
-
-        if (!currentUser || !isTeacher) {
-            router.replace("/login");
-        }
-    }, [currentUser, router]);
-
     // Calculate stats for each student
     const rekapDataFull = useMemo(() => {
         if (!studentsInClass.length) return [];

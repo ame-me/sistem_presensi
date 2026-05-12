@@ -65,6 +65,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { getApiBaseUrl } from "@/lib/api-config";
+import { getPageAccessLevel } from "@/lib/access-control";
 
 const sortClassNames = (a: string, b: string) => {
     const order: Record<string, number> = { "VII": 7, "VIII": 8, "IX": 9 };
@@ -78,7 +79,8 @@ const sortClassNames = (a: string, b: string) => {
 
 export default function AdminGuruPage() {
     const currentUser = useAppStore(s => s.currentUser);
-    const isKepalaSekolah = currentUser?.teacherCode === "1";
+    const accessMatrix = useAppStore(s => s.accessMatrix);
+    const canManageGuru = getPageAccessLevel(currentUser, "/admin/guru", accessMatrix) === "full";
     const [searchQuery, setSearchQuery] = useState("");
     const [isSaving, setIsSaving] = useState(false);
 
@@ -210,7 +212,7 @@ export default function AdminGuruPage() {
                     <h1 className="text-3xl font-extrabold text-[#000080]">Data Guru</h1>
                     <p className="text-slate-500 font-medium">Daftar tenaga pengajar dan penugasan mata pelajaran.</p>
                 </div>
-                {!isKepalaSekolah && (
+                {canManageGuru && (
                     <Dialog>
                         <DialogTrigger asChild>
                             <Button className="bg-[#000080] hover:bg-[#000060] text-white font-bold"><Plus className="w-4 h-4 mr-2" /> Tambah Guru</Button>
@@ -257,13 +259,13 @@ export default function AdminGuruPage() {
                                 <TableHead className="font-bold text-[#000080]">Nama Lengkap</TableHead>
                                 <TableHead className="font-bold text-[#000080]">Mata Pelajaran</TableHead>
                                 <TableHead className="font-bold text-[#000080]">Jabatan / Role</TableHead>
-                                {!isKepalaSekolah && <TableHead className="text-right font-bold text-[#000080]">Aksi</TableHead>}
+                                {canManageGuru && <TableHead className="text-right font-bold text-[#000080]">Aksi</TableHead>}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {guruLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={isKepalaSekolah ? 4 : 5} className="text-center py-20">
+                                    <TableCell colSpan={canManageGuru ? 5 : 4} className="text-center py-20">
                                         <div className="flex flex-col items-center gap-2">
                                             <Loader2 className="w-8 h-8 animate-spin text-[#000080]" />
                                             <p className="text-slate-500 font-medium">Memuat data guru...</p>
@@ -312,7 +314,7 @@ export default function AdminGuruPage() {
                                                 )}
                                             </div>
                                         </TableCell>
-                                        {!isKepalaSekolah && (
+                                        {canManageGuru && (
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                     <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => handleAction("edit", guru)}>
@@ -328,7 +330,7 @@ export default function AdminGuruPage() {
                                 ))
                             ) : (
                                 <TableRow>
-                                    <TableCell colSpan={isKepalaSekolah ? 4 : 5} className="text-center py-20 text-slate-400">
+                                    <TableCell colSpan={canManageGuru ? 5 : 4} className="text-center py-20 text-slate-400">
                                         <p className="font-medium">Tidak ada data guru ditemukan</p>
                                         <p className="text-xs">Coba kata kunci pencarian lain</p>
                                     </TableCell>

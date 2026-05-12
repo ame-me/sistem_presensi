@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
+import { AccessGuard } from "@/components/access-guard";
+import { canAccessPage, getDefaultAccessiblePath, resolveAccessRole } from "@/lib/access-control";
 import { 
     Card, 
     CardContent, 
@@ -15,42 +17,53 @@ import { useEffect, useState } from "react";
 
 export default function SelectRolePage() {
     const router = useRouter();
-    const { currentUser, logout } = useAppStore();
+    const { currentUser, logout, accessMatrix, accessMatrixLoaded } = useAppStore();
     const [isWaliKelas, setIsWaliKelas] = useState(false);
 
     useEffect(() => {
+        if (!accessMatrixLoaded) return;
+
         if (!currentUser) {
             router.replace("/login");
             return;
         }
 
+        if (!canAccessPage(currentUser, "/select-role", accessMatrix)) {
+            router.replace(getDefaultAccessiblePath(currentUser, accessMatrix));
+            return;
+        }
+
+        const role = resolveAccessRole(currentUser.role);
+
         // Check if teacher is Wali Kelas
-        if (currentUser.role !== "ORTU" && currentUser.role !== "ADMIN" && currentUser.role !== "ADMIN_IT" && currentUser.role !== "ADMIN_TU") {
+        if (role === "GURU") {
             if (currentUser.waliKelasRombelName && currentUser.waliKelasRombelName !== "-") {
                 setIsWaliKelas(true);
             } else {
-                // Not a Wali Kelas, go to dashboard directly
-                router.replace("/guru/dashboard");
+                router.replace(getDefaultAccessiblePath(currentUser, accessMatrix));
             }
-        } else if (currentUser.role === "ADMIN" || currentUser.role === "ADMIN_IT" || currentUser.role === "ADMIN_TU") {
-            router.replace("/admin/dashboard");
-        } else if (currentUser.role === "ORTU") {
-            router.replace("/ortu/dashboard");
+        } else if (role === "ADMIN_IT") {
+            router.replace(getDefaultAccessiblePath(currentUser, accessMatrix));
+        } else if (role === "ADMIN" || role === "ADMIN_TU") {
+            router.replace(getDefaultAccessiblePath(currentUser, accessMatrix));
+        } else if (role === "ORTU") {
+            router.replace(getDefaultAccessiblePath(currentUser, accessMatrix));
         }
-    }, [currentUser, router]);
+    }, [currentUser, accessMatrix, accessMatrixLoaded, router]);
 
     const handleRoleSelect = (role: 'GURU' | 'WALI_KELAS') => {
         if (role === 'WALI_KELAS') {
-            router.push("/guru/wali-kelas");
+            router.push(canAccessPage(currentUser, "/guru/wali-kelas", accessMatrix) ? "/guru/wali-kelas" : getDefaultAccessiblePath(currentUser, accessMatrix));
         } else {
-            router.push("/guru/dashboard");
+            router.push(canAccessPage(currentUser, "/guru/dashboard", accessMatrix) ? "/guru/dashboard" : getDefaultAccessiblePath(currentUser, accessMatrix));
         }
     };
 
-    if (!currentUser || !isWaliKelas) return null;
+    if (!accessMatrixLoaded || !currentUser || !isWaliKelas) return null;
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
+        <AccessGuard>
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
             <Card className="w-full max-w-2xl border-slate-200 bg-white shadow-2xl rounded-3xl overflow-hidden border-none ring-1 ring-slate-100">
                 <CardHeader className="text-center pt-10 pb-6">
                     <div className="mx-auto w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4 border border-indigo-100 shadow-sm">
@@ -113,6 +126,7 @@ export default function SelectRolePage() {
                     </div>
                 </CardContent>
             </Card>
-        </div>
+            </div>
+        </AccessGuard>
     );
 }

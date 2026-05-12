@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import * as xlsx from "xlsx";
 import { saveAs } from "file-saver";
 import { toast } from "sonner";
@@ -47,7 +48,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import {
     School,
     Users,
@@ -59,9 +60,11 @@ import {
     CheckCircle2,
     AlertCircle,
     AlertTriangle,
-    Loader2
+    Loader2,
+    Building2
 } from "lucide-react";
 import { useAppStore } from "@/lib/store";
+import { canAccessPage } from "@/lib/access-control";
 
 const DAY_NAMES = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
 
@@ -69,6 +72,9 @@ const INITIAL_CLASSES: any[] = [];
 
 export default function AdminKelasPage() {
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
+    const currentUser = useAppStore((s) => s.currentUser);
+    const accessMatrix = useAppStore((s) => s.accessMatrix);
+    const canAccessRuangan = canAccessPage(currentUser, "/admin/ruangan", accessMatrix);
     const { kelas: kelasData, refetch } = useKelasData();
     const { siswa: siswaData } = useSiswaData();
     const { guru: teachers, refetch: refetchTeachers } = useGuruData();
@@ -86,7 +92,13 @@ export default function AdminKelasPage() {
     const [editMode, setEditMode] = useState(false);
     const [formData, setFormData] = useState<any>({ id: "", grade: "VII", name: "", teacher: "", teacher_code: "" });
     const [kelasDetail, setKelasDetail] = useState<any>(null);
+    const [activeTab, setActiveTab] = useState("list");
 
+    useEffect(() => {
+        if (new URLSearchParams(window.location.search).get("tab") === "monitor") {
+            setActiveTab("monitor");
+        }
+    }, []);
 
 
     const handleOpenDialog = (data: any = { id: "", grade: "VII", name: "", teacher: "", teacher_code: "" }) => {
@@ -155,7 +167,7 @@ export default function AdminKelasPage() {
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-extrabold text-[#000080] tracking-tight">Manajemen Kelas</h1>
+                    <h1 className="text-3xl font-extrabold text-[#000080] tracking-tight">Daftar Kelas & Ruangan</h1>
                     <p className="text-slate-500 font-medium mt-1">
                         Pusat kendali data kelas, siswa, dan monitoring presensi SIPANDU.
                     </p>
@@ -237,17 +249,34 @@ export default function AdminKelasPage() {
                 </div>
             </div>
 
-            <Tabs defaultValue="list" className="space-y-6">
-                <TabsList className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm w-full md:w-auto grid grid-cols-1 md:grid-cols-2 lg:inline-flex h-auto lg:h-12 gap-1 lg:gap-0">
-                    <TabsTrigger value="list" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-6 font-bold h-10 w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                <div className={`bg-white rounded-xl border border-slate-200 shadow-sm w-full grid grid-cols-1 ${canAccessRuangan ? "md:grid-cols-3" : "md:grid-cols-2"} h-auto md:h-11 overflow-hidden`}>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab("list")}
+                        className={`inline-flex items-center justify-center px-6 font-bold h-11 text-sm ${activeTab === "list" ? "bg-[#000080] text-white" : "text-slate-600 hover:text-[#000080] hover:bg-slate-50"}`}
+                    >
                         <School className="w-4 h-4 mr-2" />
                         Daftar Kelas
-                    </TabsTrigger>
-                    <TabsTrigger value="monitor" className="data-[state=active]:bg-[#000080] data-[state=active]:text-white rounded-lg px-6 font-bold h-10">
+                    </button>
+                    {canAccessRuangan && (
+                        <Link
+                            href="/admin/ruangan"
+                            className="inline-flex items-center justify-center px-6 font-bold h-11 text-sm text-slate-600 hover:text-[#000080] hover:bg-slate-50"
+                        >
+                            <Building2 className="w-4 h-4 mr-2" />
+                            Manajemen Ruangan
+                        </Link>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab("monitor")}
+                        className={`inline-flex items-center justify-center px-6 font-bold h-11 text-sm ${activeTab === "monitor" ? "bg-[#000080] text-white" : "text-slate-600 hover:text-[#000080] hover:bg-slate-50"}`}
+                    >
                         <Eye className="w-4 h-4 mr-2" />
                         Monitoring (Real-Time)
-                    </TabsTrigger>
-                </TabsList>
+                    </button>
+                </div>
 
                 {/* TAB 1: DAFTAR KELAS & SISWA */}
                 <TabsContent value="list" className="space-y-6">

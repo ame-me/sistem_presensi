@@ -52,6 +52,7 @@ import { useAttendanceData } from "@/hooks/useAttendanceData";
 import { useIzinData } from "@/hooks/useIzinData";
 import { useJadwalData } from "@/hooks/useJadwalData";
 import { getApiBaseUrl } from "@/lib/api-config";
+import { getPageAccessLevel } from "@/lib/access-control";
 
 const DAY_NAMES = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
 
@@ -79,9 +80,11 @@ export default function AdminDashboardPage() {
     const { jadwal: allSchedules, loading: loadingJadwal } = useJadwalData();
 
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
+    const accessMatrix = useAppStore((s) => s.accessMatrix);
 
     if (!currentUser) return null;
-    const isKepalaSekolah = currentUser.teacherCode === "1";
+    const canManageDashboard = getPageAccessLevel(currentUser, "/admin/dashboard", accessMatrix) === "full";
+    const isViewOnlyDashboard = !canManageDashboard;
 
     const teacherCount = guru.length;
     const studentCount = siswa.length;
@@ -249,7 +252,7 @@ export default function AdminDashboardPage() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-extrabold text-[#000080] tracking-tight">
-                        {isKepalaSekolah ? "Ringkasan Laporan" : "Dashboard Admin"}
+                        {isViewOnlyDashboard ? "Ringkasan Laporan" : "Dashboard Admin"}
                     </h1>
                     <p className="text-slate-500 font-medium mt-1">
                         SIPANDU - SMPK SANTA MARIA 2 •{" "}
@@ -630,7 +633,7 @@ export default function AdminDashboardPage() {
                 {/* Right Column: Alerts & Widgets (1/3 width) */}
                 <div className="space-y-8">
                     {/* Verification Widget */}
-                    {!isKepalaSekolah && (
+                    {canManageDashboard && (
                         <Link href="/admin/verifikasi">
                             <Card className="border-amber-200 bg-amber-50 shadow-md hover:shadow-lg transition-all cursor-pointer group rounded-2xl overflow-hidden relative">
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full -mr-16 -mt-16 blur-2xl"></div>
@@ -673,7 +676,7 @@ export default function AdminDashboardPage() {
                                             </div>
                                             <div className="text-right flex flex-col items-end gap-1">
                                                 <p className="text-xs font-bold text-slate-600 bg-slate-100 px-2 py-1 rounded-md">{s.startTime}</p>
-                                                {!isKepalaSekolah && (
+                                                {canManageDashboard && (
                                                     <button onClick={() => handleRemind(s)} className="text-[10px] bg-red-100 text-red-700 hover:bg-red-200 px-2 py-0.5 rounded font-bold transition-colors">
                                                         Ingatkan
                                                     </button>

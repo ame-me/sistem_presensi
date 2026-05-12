@@ -181,6 +181,12 @@ CREATE TABLE IF NOT EXISTS notifikasi (
     INDEX idx_notifikasi_teacher (teacher_code, is_read)
 );
 
+CREATE TABLE IF NOT EXISTS app_settings (
+    setting_key VARCHAR(80) NOT NULL PRIMARY KEY,
+    setting_value LONGTEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- MIGRASI INDEX UNTUK DATABASE LAMA
 -- Data siswa/kelas/mapel perlu bisa berulang di semester atau tahun ajaran berbeda.
 SET @schema_name = DATABASE();

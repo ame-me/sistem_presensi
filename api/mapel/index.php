@@ -32,8 +32,54 @@ switch($requestMethod) {
 
     case 'POST':
         $data = json_decode(file_get_contents("php://input"), true);
-        
-        if(!empty($data['code']) && !empty($data['name'])) {
+
+        if (isset($data[0]) && is_array($data)) {
+            $conn->beginTransaction();
+            try {
+                $query = "INSERT INTO mapel (code, name, grade, hours, cat, tahun_ajaran)
+                          VALUES (:code, :name, :grade, :hours, :cat, :tahun_ajaran)
+                          ON DUPLICATE KEY UPDATE
+                            name = VALUES(name),
+                            grade = VALUES(grade),
+                            hours = VALUES(hours),
+                            cat = VALUES(cat)";
+                $stmt = $conn->prepare($query);
+                $processed = 0;
+                $skipped = 0;
+
+                foreach ($data as $row) {
+                    $code = trim($row['code'] ?? '');
+                    $name = trim($row['name'] ?? '');
+
+                    if ($code === '' || $name === '') {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $stmt->execute([
+                        ':code' => $code,
+                        ':name' => $name,
+                        ':grade' => $row['grade'] ?? 'VII',
+                        ':hours' => $row['hours'] ?? 0,
+                        ':cat' => $row['cat'] ?? 'Umum',
+                        ':tahun_ajaran' => $row['tahun_ajaran'] ?? '2025/2026 Genap'
+                    ]);
+                    $processed++;
+                }
+
+                $conn->commit();
+                echo json_encode([
+                    "status" => "success",
+                    "message" => $processed . " mapel berhasil diimport",
+                    "processed" => $processed,
+                    "skipped" => $skipped
+                ]);
+            } catch(PDOException $e) {
+                $conn->rollBack();
+                http_response_code(400);
+                echo json_encode(["status" => "error", "message" => "Gagal bulk import: " . $e->getMessage()]);
+            }
+        } elseif(!empty($data['code']) && !empty($data['name'])) {
             $query = "INSERT INTO mapel (code, name, grade, hours, cat, tahun_ajaran) VALUES (:code, :name, :grade, :hours, :cat, :tahun_ajaran)";
             $stmt = $conn->prepare($query);
             

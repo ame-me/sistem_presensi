@@ -4,40 +4,45 @@ import { useAppStore } from "@/lib/store";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { Sidebar } from "@/components/sidebar";
+import { AccessModeBoundary } from "@/components/access-mode-boundary";
+import { canAccessPage, getDefaultAccessiblePath, getPageAccessLevel, requiresTahunAjaran } from "@/lib/access-control";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
     const currentUser = useAppStore((s) => s.currentUser);
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
+    const accessMatrix = useAppStore((s) => s.accessMatrix);
+    const accessMatrixLoaded = useAppStore((s) => s.accessMatrixLoaded);
     const router = useRouter();
     const pathname = usePathname();
+    const accessLevel = getPageAccessLevel(currentUser, pathname, accessMatrix);
 
     useEffect(() => {
-        if (!currentUser || (currentUser.role !== "ADMIN" && currentUser.role !== "ADMIN_TU")) {
+        if (!accessMatrixLoaded) return;
+
+        if (!currentUser) {
             router.replace("/login");
             return;
         }
 
-        if (!selectedTahunAjaran) {
-            router.replace("/select-year");
+        if (!canAccessPage(currentUser, pathname, accessMatrix)) {
+            router.replace(getDefaultAccessiblePath(currentUser, accessMatrix));
             return;
         }
 
-        // Restriksi untuk Kepala Sekolah (Code 1)
-        const isKepalaSekolah = currentUser.teacherCode === "1";
-        const allowedPaths = ["/admin/dashboard", "/admin/guru", "/admin/ruangan", "/admin/mapel/analitik"];
-        
-        if (isKepalaSekolah && !allowedPaths.includes(pathname)) {
-            router.replace("/admin/dashboard");
+        if (requiresTahunAjaran(currentUser, pathname) && !selectedTahunAjaran) {
+            router.replace("/select-year");
         }
-    }, [currentUser, router, pathname]);
+    }, [currentUser, accessMatrix, accessMatrixLoaded, selectedTahunAjaran, router, pathname]);
 
-    if (!currentUser || (currentUser.role !== "ADMIN" && currentUser.role !== "ADMIN_TU")) return null;
+    if (!accessMatrixLoaded || !currentUser || !canAccessPage(currentUser, pathname, accessMatrix)) return null;
 
     return (
         <div className="min-h-screen bg-background text-slate-800">
-            <Sidebar role={currentUser.role as any} userName={currentUser.name} teacherCode={currentUser.teacherCode} />
+            <Sidebar role={currentUser.role} userName={currentUser.name} teacherCode={currentUser.teacherCode} />
             <main className="lg:ml-64 min-h-screen">
-                <div className="p-6 lg:p-8">{children}</div>
+                <div className="p-6 lg:p-8">
+                    <AccessModeBoundary accessLevel={accessLevel}>{children}</AccessModeBoundary>
+                </div>
             </main>
         </div>
     );

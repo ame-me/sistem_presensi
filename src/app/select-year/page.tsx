@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { getApiBaseUrl } from "@/lib/api-config";
+import { AccessGuard } from "@/components/access-guard";
+import { canAccessPage, getDefaultAccessiblePath, requiresTahunAjaran } from "@/lib/access-control";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -29,11 +31,26 @@ export default function SelectYearPage() {
     const [isSaving, setIsSaving] = useState(false);
     const router = useRouter();
     const currentUser = useAppStore((s) => s.currentUser);
+    const accessMatrix = useAppStore((s) => s.accessMatrix);
+    const accessMatrixLoaded = useAppStore((s) => s.accessMatrixLoaded);
     const setStoreYear = useAppStore((s) => s.setSelectedTahunAjaran);
 
     useEffect(() => {
+        if (!accessMatrixLoaded) return;
+
         if (!currentUser) {
             router.push("/login");
+            return;
+        }
+
+        if (!canAccessPage(currentUser, "/select-year", accessMatrix)) {
+            router.replace(getDefaultAccessiblePath(currentUser, accessMatrix));
+            return;
+        }
+
+        const targetPath = getDefaultAccessiblePath(currentUser, accessMatrix);
+        if (!requiresTahunAjaran(currentUser, targetPath)) {
+            router.replace(targetPath);
             return;
         }
 
@@ -50,7 +67,7 @@ export default function SelectYearPage() {
             })
             .catch(err => toast.error("Gagal mengambil data tahun ajaran"))
             .finally(() => setLoading(false));
-    }, [currentUser, router]);
+    }, [currentUser, accessMatrix, accessMatrixLoaded, router]);
 
     const handleContinue = () => {
         if (!selectedYear) return toast.error("Pilih tahun ajaran terlebih dahulu");
@@ -61,20 +78,9 @@ export default function SelectYearPage() {
         // Save to localStorage so it persists
         localStorage.setItem("selectedTahunAjaran", selectedYear);
 
-        // Slight delay for premium feel
         setTimeout(() => {
             if (currentUser) {
-                const role = currentUser.role.toUpperCase();
-                if (role.includes("ADMIN_IT")) {
-                    router.push("/it/dashboard");
-                } else if (role.includes("ADMIN")) {
-                    router.push("/admin/dashboard");
-                } else if (role.includes("ORTU")) {
-                    router.push("/ortu/dashboard");
-                } else {
-                    // Default for Guru Mapel, Wali Kelas, Guru BK, etc.
-                    router.push("/select-role");
-                }
+                router.push(getDefaultAccessiblePath(currentUser, accessMatrix));
             }
         }, 800);
     };
@@ -88,7 +94,8 @@ export default function SelectYearPage() {
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 relative overflow-hidden font-sans">
+        <AccessGuard>
+            <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 relative overflow-hidden font-sans">
             {/* Background decoration */}
             <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-blue-900/5 rounded-full blur-3xl" />
             <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-64 h-64 bg-blue-900/5 rounded-full blur-3xl" />
@@ -139,6 +146,7 @@ export default function SelectYearPage() {
                     </Button>
                 </CardContent>
             </Card>
-        </div>
+            </div>
+        </AccessGuard>
     );
 }

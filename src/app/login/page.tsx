@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
 import { getApiBaseUrl } from "@/lib/api-config";
+import { getDefaultAccessiblePath, requiresTahunAjaran } from "@/lib/access-control";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,18 @@ import {
 } from "@/components/ui/card";
 import { GraduationCap, Loader2, Eye, EyeOff } from "lucide-react";
 
+const normalizeRole = (role: string) => role.toUpperCase().trim().replace(/\s+/g, "_");
+
+const toAppRole = (role: string) => {
+    const normalizedRole = normalizeRole(role);
+
+    if (normalizedRole.includes("ADMIN_TU")) return "ADMIN_TU";
+    if (normalizedRole.includes("ADMIN_IT") || (normalizedRole.includes("ADMIN") && normalizedRole.includes("IT"))) return "ADMIN_IT";
+    if (normalizedRole === "ADMIN" || normalizedRole.includes("KEPALA")) return "ADMIN";
+    if (normalizedRole.includes("ORTU")) return "ORTU";
+    return normalizedRole;
+};
+
 export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -24,6 +37,15 @@ export default function LoginPage() {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
     const login = useAppStore((s) => s.login);
+
+    const routeAfterLogin = async () => {
+        await useAppStore.getState().fetchAccessMatrix();
+        const state = useAppStore.getState();
+        const user = state.currentUser;
+        const targetPath = getDefaultAccessiblePath(user, state.accessMatrix);
+
+        router.push(requiresTahunAjaran(user, targetPath) && !state.selectedTahunAjaran ? "/select-year" : targetPath);
+    };
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -40,18 +62,19 @@ export default function LoginPage() {
             const data = await res.json();
             
             if (data.status === "success" && data.data) {
+                const normalizedRole = toAppRole(data.data.role);
                 const guruUser: any = {
                     id: String(data.data.id),
                     name: data.data.name,
                     email: data.data.email,
                     teacherCode: data.data.teacherCode,
-                    role: data.data.role.toUpperCase().replace(' ', '_'),
+                    role: normalizedRole,
                     phone: data.data.phone,
                     waliKelasRombelName: data.data.wali_kelas,
                     isBK: Boolean(data.data.isBK)
                 };
                 useAppStore.setState({ currentUser: guruUser });
-                router.push("/select-year");
+                await routeAfterLogin();
                 setLoading(false);
                 return;
             }
@@ -78,12 +101,21 @@ export default function LoginPage() {
                     phone: data.data.phone
                 };
                 useAppStore.setState({ currentUser: ortuUser });
-                router.push("/select-year");
+                await routeAfterLogin();
                 setLoading(false);
                 return;
             }
         } catch (err) { 
             console.error("Ortu login error", err);
+        }
+
+        if (login(email, password)) {
+            const fallbackUser = useAppStore.getState().currentUser;
+            if (fallbackUser) {
+                await routeAfterLogin();
+                setLoading(false);
+                return;
+            }
         }
 
         setError("Email / NIK atau password salah");

@@ -15,19 +15,21 @@ import {
     GraduationCap,
     Menu,
     X,
-    Building2,
     Activity,
     Shield,
     Database,
     CalendarDays,
+    Settings,
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { APP_PAGES, canAccessPage, resolveAccessRole } from "@/lib/access-control";
 
 interface NavItem {
     label: string;
     href: string;
     icon: React.ReactNode;
+    activePaths?: string[];
 }
 
 interface SidebarProps {
@@ -36,45 +38,31 @@ interface SidebarProps {
     teacherCode?: string;
 }
 
-const navItems: Record<string, NavItem[]> = {
-    ADMIN: [
-        { label: "Dashboard", href: "/admin/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { label: "Daftar Kelas", href: "/admin/kelas", icon: <School className="w-5 h-5" /> },
-        { label: "Manajemen Ruangan", href: "/admin/ruangan", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { label: "Mata Pelajaran", href: "/admin/mapel", icon: <BookOpen className="w-5 h-5" /> },
-        { label: "Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
-        { label: "Siswa", href: "/admin/siswa", icon: <GraduationCap className="w-5 h-5" /> },
-        { label: "Pengajuan Izin", href: "/admin/izin", icon: <FileText className="w-5 h-5" /> },
-        { label: "Rekap Presensi", href: "/admin/rekap", icon: <ClipboardList className="w-5 h-5" /> },
-    ],
-    ADMIN_IT: [
-        { label: "Dashboard", href: "/it/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { label: "Akses User", href: "/it/users", icon: <Shield className="w-5 h-5" /> },
-        { label: "Akun Orang Tua", href: "/it/ortu", icon: <Users className="w-5 h-5" /> },
-        { label: "Backup Data", href: "/it/backup", icon: <Database className="w-5 h-5" /> },
-    ],
-    ADMIN_TU: [
-        { label: "Dashboard", href: "/admin/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { label: "Daftar Kelas", href: "/admin/kelas", icon: <School className="w-5 h-5" /> },
-        { label: "Manajemen Ruangan", href: "/admin/ruangan", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { label: "Mata Pelajaran", href: "/admin/mapel", icon: <BookOpen className="w-5 h-5" /> },
-        { label: "Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
-        { label: "Siswa", href: "/admin/siswa", icon: <GraduationCap className="w-5 h-5" /> },
-        { label: "Akun Orang Tua", href: "/admin/ortu", icon: <Users className="w-5 h-5" /> },
-        { label: "Tahun Ajaran", href: "/admin/tahun-ajaran", icon: <CalendarDays className="w-5 h-5" /> },
-        { label: "Rekap Presensi", href: "/admin/rekap", icon: <ClipboardList className="w-5 h-5" /> },
-    ],
-    GURU: [
-        { label: "Dashboard", href: "/guru/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { label: "Presensi", href: "/guru/presensi", icon: <ClipboardList className="w-5 h-5" /> },
-        { label: "Pengajuan Izin", href: "/guru/izin", icon: <FileText className="w-5 h-5" /> },
-    ],
-    ORTU: [
-        { label: "Dashboard", href: "/ortu/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-        { label: "Jadwal Pelajaran", href: "/ortu/jadwal", icon: <BookOpen className="w-5 h-5" /> },
-        { label: "Ajukan Izin", href: "/ortu/izin", icon: <FileText className="w-5 h-5" /> },
-        { label: "Riwayat & Izin", href: "/ortu/riwayat", icon: <ClipboardList className="w-5 h-5" /> },
-    ],
+const pageIcons: Record<string, React.ReactNode> = {
+    "/admin/dashboard": <LayoutDashboard className="w-5 h-5" />,
+    "/admin/kelas": <School className="w-5 h-5" />,
+    "/admin/ruangan": <LayoutDashboard className="w-5 h-5" />,
+    "/admin/mapel": <BookOpen className="w-5 h-5" />,
+    "/admin/mapel/analitik": <Activity className="w-5 h-5" />,
+    "/admin/guru": <Users className="w-5 h-5" />,
+    "/admin/siswa": <GraduationCap className="w-5 h-5" />,
+    "/admin/ortu": <Users className="w-5 h-5" />,
+    "/admin/tahun-ajaran": <CalendarDays className="w-5 h-5" />,
+    "/admin/izin": <FileText className="w-5 h-5" />,
+    "/admin/rekap": <ClipboardList className="w-5 h-5" />,
+    "/admin/verifikasi": <Shield className="w-5 h-5" />,
+    "/it/dashboard": <LayoutDashboard className="w-5 h-5" />,
+    "/it/users": <Shield className="w-5 h-5" />,
+    "/it/ortu": <Users className="w-5 h-5" />,
+    "/it/backup": <Database className="w-5 h-5" />,
+    "/guru/dashboard": <LayoutDashboard className="w-5 h-5" />,
+    "/guru/presensi": <ClipboardList className="w-5 h-5" />,
+    "/guru/izin": <FileText className="w-5 h-5" />,
+    "/guru/wali-kelas": <GraduationCap className="w-5 h-5" />,
+    "/ortu/dashboard": <LayoutDashboard className="w-5 h-5" />,
+    "/ortu/jadwal": <BookOpen className="w-5 h-5" />,
+    "/ortu/izin": <FileText className="w-5 h-5" />,
+    "/ortu/riwayat": <ClipboardList className="w-5 h-5" />,
 };
 
 const roleLabels: Record<string, string> = {
@@ -86,45 +74,38 @@ const roleLabels: Record<string, string> = {
     ORTU: "Portal Orang Tua",
 };
 
-const roleColors: Record<string, string> = {
-    ADMIN: "bg-[#000080] shadow-blue-900/10",
-    ADMIN_IT: "bg-[#000080] shadow-blue-900/10",
-    ADMIN_TU: "bg-[#000080] shadow-blue-900/10",
-    GURU: "bg-[#000080] shadow-blue-900/10",
-    ORTU: "bg-[#000080] shadow-blue-900/10",
-};
-
-export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
+export function Sidebar({ role, userName }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
     const currentUser = useAppStore((s) => s.currentUser);
+    const accessMatrix = useAppStore((s) => s.accessMatrix);
     const logout = useAppStore((s) => s.logout);
-
-    // Identifikasi Kepala Sekolah (ADMIN dengan kode 1)
-    const isKepalaSekolah = role === "ADMIN" && teacherCode === "1";
+    const displayRole = resolveAccessRole(currentUser?.role) || role;
 
     const isWaliKelasPanel = pathname.startsWith("/guru/wali-kelas");
-
-    const items = isKepalaSekolah
-        ? [
-            { label: "Dashboard", href: "/admin/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-            { label: "Data Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
-            { label: "Data Ruangan", href: "/admin/ruangan", icon: <Building2 className="w-5 h-5" /> },
-            { label: "Laporan Presensi", href: "/admin/mapel/analitik", icon: <ClipboardList className="w-5 h-5" /> },
-        ]
-        : isWaliKelasPanel 
-        ? [
-            { label: "Panel Wali Kelas", href: "/guru/wali-kelas", icon: <LayoutDashboard className="w-5 h-5" /> },
-            { label: "Menu Utama", href: "/select-role", icon: <Users className="w-5 h-5" /> },
-        ]
-        : role === "GURU"
-        ? [
-            ...navItems["GURU"],
-            ...(currentUser?.waliKelasRombelName && currentUser.waliKelasRombelName !== "-" 
-                ? [{ label: "Panel Wali Kelas", href: "/select-role", icon: <GraduationCap className="w-5 h-5 text-emerald-600" /> }] 
-                : [])
-        ]
-        : navItems[role] || [];
+    const accessiblePages = APP_PAGES
+        .filter((page) => canAccessPage(currentUser, page.path, accessMatrix))
+        .map((page): NavItem => ({
+            label: page.label,
+            href: page.path,
+            icon: pageIcons[page.path] || <LayoutDashboard className="w-5 h-5" />,
+        }));
+    const canAccessKelas = canAccessPage(currentUser, "/admin/kelas", accessMatrix);
+    const canAccessRuangan = canAccessPage(currentUser, "/admin/ruangan", accessMatrix);
+    const items = accessiblePages.reduce<NavItem[]>((acc, item) => {
+        if (item.href === "/admin/ruangan") return acc;
+        if (item.href === "/admin/kelas" && (canAccessKelas || canAccessRuangan)) {
+            acc.push({
+                label: "Daftar Kelas & Ruangan",
+                href: canAccessKelas ? "/admin/kelas" : "/admin/ruangan",
+                icon: <School className="w-5 h-5" />,
+                activePaths: ["/admin/kelas", "/admin/ruangan"],
+            });
+            return acc;
+        }
+        acc.push(item);
+        return acc;
+    }, []);
 
     const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -186,7 +167,8 @@ export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
                 {/* Navigation */}
                 <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     {items.map((item) => {
-                        const isActive = pathname === item.href;
+                        const activePaths = item.activePaths || [item.href];
+                        const isActive = activePaths.some((path) => pathname === path || pathname.startsWith(`${path}/`));
                         return (
                             <Link
                                 key={item.href}
@@ -215,7 +197,7 @@ export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-slate-800 truncate">{userName}</p>
                             <p className="text-[10px] font-medium text-slate-500 uppercase">
-                                {isKepalaSekolah ? roleLabels.KEPALA_SEKOLAH : isWaliKelasPanel ? "WALI KELAS " + (currentUser?.waliKelasRombelName || "") : roleLabels[role]}
+                                {isWaliKelasPanel ? "WALI KELAS " + (currentUser?.waliKelasRombelName || "") : roleLabels[displayRole]}
                             </p>
                         </div>
                     </div>

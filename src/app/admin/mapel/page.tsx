@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import Link from "next/link";
+import * as XLSX from "xlsx";
 import {
     Card,
     CardContent,
@@ -62,7 +63,8 @@ import {
     Copy,
     Bell,
     User,
-    Loader2
+    Loader2,
+    Upload
 } from "lucide-react";
 import { toast } from "sonner";
 import { useMapelData, MapelAPI } from "@/hooks/useMapelData";
@@ -71,6 +73,38 @@ import { useJadwalData, JadwalItem } from "@/hooks/useJadwalData";
 import { useAppStore } from "@/lib/store";
 import { useRuanganData } from "@/hooks/useRuanganData";
 import { getApiBaseUrl } from "@/lib/api-config";
+import { getPageAccessLevel } from "@/lib/access-control";
+
+const MAPEL_IMPORT_HEADERS = ["code", "name", "grade", "hours", "cat"];
+
+const normalizeImportHeader = (header: string) =>
+    header
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, "_")
+        .replace(/[^\w]/g, "");
+
+const getImportCellValue = (row: Record<string, unknown>, aliases: string[]) => {
+    for (const alias of aliases) {
+        const value = row[alias];
+        if (value !== undefined && value !== null) return String(value).trim();
+    }
+    return "";
+};
+
+const normalizeMapelGrade = (value: string) => {
+    const raw = value.trim().toUpperCase().replace(/^KELAS\s+/, "");
+    const gradeMap: Record<string, string> = {
+        "7": "VII",
+        "VII": "VII",
+        "8": "VIII",
+        "VIII": "VIII",
+        "9": "IX",
+        "IX": "IX",
+    };
+
+    return gradeMap[raw] || raw;
+};
 
 export default function AdminMapelPage() {
     const [filterTingkat, setFilterTingkat] = useState("all");
@@ -80,6 +114,8 @@ export default function AdminMapelPage() {
     const [rombelSearchQuery, setRombelSearchQuery] = useState("");
     const [isLoadingJadwal, setIsLoadingJadwal] = useState(false);
     const [isAddOpen, setIsAddOpen] = useState(false);
+    const mapelImportInputRef = useRef<HTMLInputElement | null>(null);
+    const [isImportingMapel, setIsImportingMapel] = useState(false);
 
     // State untuk form Tambah Mapel
     const [newMapelName, setNewMapelName] = useState("");
@@ -102,7 +138,8 @@ export default function AdminMapelPage() {
     const { jadwal: dbJadwal, loading: jadwalLoading, refetch: refetchJadwal } = useJadwalData();
     const currentUser = useAppStore(s => s.currentUser);
     const selectedTahunAjaran = useAppStore(s => s.selectedTahunAjaran);
-    const canEditSchedule = currentUser?.role === "ADMIN_IT" || currentUser?.role === "ADMIN_TU" || currentUser?.role === "ADMIN";
+    const accessMatrix = useAppStore(s => s.accessMatrix);
+    const canEditSchedule = getPageAccessLevel(currentUser, "/admin/mapel", accessMatrix) === "full";
 
     // State untuk Edit Jadwal Slot
     const [editingSlot, setEditingSlot] = useState<any>(null);
@@ -177,19 +214,17 @@ export default function AdminMapelPage() {
 
 
     const handleSave = () => {
-        if (!newMapelName || !newMapelCode || !newMapelCat) {
+        if (!newMapelName || !newMapelCode) {
             toast.error("Mohon lengkapi semua data mata pelajaran!");
             return;
         }
-
-        const categoryLabel = newMapelCat === "umum" ? "Muatan Nasional (Umum)" : newMapelCat === "lokal" ? "Muatan Lokal" : "Ekstrakurikuler";
 
         const newMapel = {
             code: newMapelCode,
             name: newMapelName,
             grade: newMapelGrade,
             hours: parseInt(newMapelHours) || 0,
-            cat: "Umum", // Defaulted since field is removed
+            cat: newMapelCat || "Umum",
             tahun_ajaran: selectedTahunAjaran,
             teachers: []
         };
@@ -211,6 +246,138 @@ export default function AdminMapelPage() {
         setNewMapelCode("");
         setNewMapelCat("");
         setNewMapelHours("4");
+    };
+
+    const rowsFromFirstSheet = (sheet: XLSX.WorkSheet) => {
+        const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" });
+        const headerIndex = rawRows.findIndex((row) => {
+            const headers = row.map((cell) => normalizeImportHeader(String(cell)));
+            return headers.some(h => ["code", "kode", "kode_mapel", "kodemapel"].includes(h)) &&
+                headers.some(h => ["name", "nama", "mapel", "nama_mapel", "namamapel", "mata_pelajaran"].includes(h));
+        });
+
+        if (headerIndex === -1) return null;
+
+        const headers = rawRows[headerIndex].map((cell) => String(cell).trim());
+        return rawRows.slice(headerIndex + 1)
+            .filter((row) => row.some((cell) => String(cell).trim() !== ""))
+            .map((row) => Object.fromEntries(headers.map((header, index) => [header, row[index] ?? ""])));
+    };
+
+    const normalizeMapelImportRow = (row: Record<string, unknown>) => {
+        const normalized = Object.fromEntries(
+            Object.entries(row).map(([key, value]) => [normalizeImportHeader(key), value])
+        );
+        const hoursText = getImportCellValue(normalized, ["hours", "jam", "beban", "beban_jam", "beban_jam_minggu", "jp"]);
+
+        return {
+            code: getImportCellValue(normalized, ["code", "kode", "kode_mapel", "kodemapel"]),
+            name: getImportCellValue(normalized, ["name", "nama", "mapel", "nama_mapel", "namamapel", "mata_pelajaran"]),
+            grade: normalizeMapelGrade(getImportCellValue(normalized, ["grade", "tingkat", "kelas", "tingkat_kelas"])),
+            hours: Number.parseInt(hoursText, 10) || 0,
+            cat: getImportCellValue(normalized, ["cat", "kategori"]) || "Umum",
+            tahun_ajaran: selectedTahunAjaran,
+        };
+    };
+
+    const handleImportMapelFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setIsImportingMapel(true);
+        try {
+            const buffer = await file.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: "array" });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows = rowsFromFirstSheet(sheet);
+
+            if (!rows) {
+                toast.error("Header import tidak ditemukan. Pastikan ada kolom code/kode dan name/nama.");
+                return;
+            }
+
+            if (rows.length === 0) {
+                toast.error("File import mapel kosong");
+                return;
+            }
+
+            const seenCodes = new Set<string>();
+            const validRows: ReturnType<typeof normalizeMapelImportRow>[] = [];
+            let missingCode = 0;
+            let missingName = 0;
+            let invalidGrade = 0;
+            let duplicate = 0;
+
+            for (const row of rows) {
+                const data = normalizeMapelImportRow(row);
+                const importKey = `${data.code.toUpperCase()}|${data.tahun_ajaran || ""}`;
+                if (!data.code) {
+                    missingCode++;
+                    continue;
+                }
+                if (!data.name) {
+                    missingName++;
+                    continue;
+                }
+                if (!["VII", "VIII", "IX"].includes(data.grade)) {
+                    invalidGrade++;
+                    continue;
+                }
+                if (seenCodes.has(importKey)) {
+                    duplicate++;
+                    continue;
+                }
+                seenCodes.add(importKey);
+                validRows.push(data);
+            }
+
+            if (validRows.length === 0) {
+                toast.error(`Tidak ada baris valid. Kode kosong: ${missingCode}, nama kosong: ${missingName}, tingkat salah: ${invalidGrade}, duplikat: ${duplicate}.`);
+                return;
+            }
+
+            const response = await fetch(`${getApiBaseUrl()}/mapel/index.php`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(validRows),
+            });
+            const data = await response.json();
+            const skipped = missingCode + missingName + invalidGrade + duplicate;
+
+            if (data.status === "success") {
+                toast.success(`${data.message}. ${skipped} baris dilewati.`);
+                refetch();
+            } else {
+                toast.error(data.message || "Gagal import mapel");
+            }
+        } catch (error) {
+            toast.error("Gagal membaca file mapel. Gunakan CSV, XLS, atau XLSX sesuai template.");
+        } finally {
+            setIsImportingMapel(false);
+            event.target.value = "";
+        }
+    };
+
+    const downloadMapelTemplate = () => {
+        const worksheet = XLSX.utils.json_to_sheet([
+            {
+                code: "MTK-VII",
+                name: "Matematika",
+                grade: "VII",
+                hours: 4,
+                cat: "Umum",
+            },
+            {
+                code: "BIN-VII",
+                name: "Bahasa Indonesia",
+                grade: "VII",
+                hours: 4,
+                cat: "Umum",
+            },
+        ], { header: MAPEL_IMPORT_HEADERS });
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "template_mapel");
+        XLSX.writeFile(workbook, "template_import_mapel.xlsx");
     };
 
     const handleEditSave = () => {
@@ -320,6 +487,21 @@ export default function AdminMapelPage() {
                     </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto mt-4 md:mt-0">
+                    <Button variant="outline" className="w-full sm:w-auto text-slate-600 border-slate-200 hover:bg-slate-50 font-bold" onClick={downloadMapelTemplate}>
+                        <FileSpreadsheet className="w-4 h-4 mr-2" />
+                        Template
+                    </Button>
+                    <input
+                        ref={mapelImportInputRef}
+                        type="file"
+                        accept=".csv,.xls,.xlsx"
+                        className="hidden"
+                        onChange={handleImportMapelFile}
+                    />
+                    <Button variant="outline" className="w-full sm:w-auto text-slate-600 border-slate-200 hover:bg-slate-50 font-bold" onClick={() => mapelImportInputRef.current?.click()} disabled={isImportingMapel}>
+                        {isImportingMapel ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                        {isImportingMapel ? "Mengimpor..." : "Import Mapel"}
+                    </Button>
                     <Button variant="outline" className="w-full sm:w-auto text-slate-600 border-slate-200 hover:bg-slate-50 font-bold">
                         <FileSpreadsheet className="w-4 h-4 mr-2" />
                         Export Jadwal
