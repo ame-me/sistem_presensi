@@ -11,7 +11,9 @@ export interface RuanganAPI {
     pic: string;
 }
 
-const API_BASE_URL = "http://127.0.0.1/presensipander/api";
+import { getApiBaseUrl } from "@/lib/api-config";
+
+const API_BASE_URL = getApiBaseUrl();
 
 export function useRuanganData() {
     const [ruangan, setRuangan] = useState<RuanganAPI[]>([]);

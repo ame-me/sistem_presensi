@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
+import { getApiBaseUrl } from '@/lib/api-config';
 
 export interface JadwalItem {
     id: number;
@@ -32,7 +33,7 @@ export function useJadwalData(dayName?: string, className?: string, teacherCode?
             if (teacherCode) params.append('teacher', teacherCode);
             if (selectedTahunAjaran) params.append('tahun_ajaran', selectedTahunAjaran);
             
-            const url = `http://127.0.0.1/presensipander/api/jadwal/index.php?${params.toString()}`;
+            const url = `${getApiBaseUrl()}/jadwal/index.php?${params.toString()}`;
             
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);

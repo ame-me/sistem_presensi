@@ -296,13 +296,20 @@ export default function AdminGuruPage() {
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant="secondary" className={cn(
-                                                "font-semibold",
-                                                guru.role === "ADMIN" ? "bg-purple-100 text-purple-700 hover:bg-purple-100" : 
-                                                guru.role.includes("Wali Kelas") ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : ""
-                                            )}>
-                                                {guru.role}
-                                            </Badge>
+                                            <div className="flex flex-wrap gap-1">
+                                                <Badge variant="secondary" className={cn(
+                                                    "font-semibold",
+                                                    guru.role === "ADMIN" ? "bg-purple-100 text-purple-700 hover:bg-purple-100" : 
+                                                    "bg-slate-100 text-slate-700"
+                                                )}>
+                                                    {guru.role}
+                                                </Badge>
+                                                {guru.wali_kelas && guru.wali_kelas !== "-" && (
+                                                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-bold">
+                                                        Wali Kelas {guru.wali_kelas.split(' (')[0]}
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         {!isKepalaSekolah && (
                                             <TableCell className="text-right">

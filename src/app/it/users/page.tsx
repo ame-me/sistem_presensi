@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useGuruData } from "@/hooks/useGuruData";
+import { getApiBaseUrl } from "@/lib/api-config";
 import { cn } from "@/lib/utils";
 import {
     Card,
@@ -12,6 +13,14 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
     Dialog,
@@ -33,7 +42,8 @@ import {
 import { toast } from "sonner";
 
 export default function ITUsersPage() {
-    const { guru, loading, error } = useGuruData();
+    const { guru, loading, error, refetch } = useGuruData();
+    const API_BASE_URL = getApiBaseUrl();
     const [searchTerm, setSearchTerm] = useState("");
     const [resetDialogOpen, setResetDialogOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -42,7 +52,7 @@ export default function ITUsersPage() {
     const filteredUsers = guru.filter(u =>
         u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         u.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (u.email && u.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (u.teacherCode && u.teacherCode.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
@@ -55,15 +65,93 @@ export default function ITUsersPage() {
         if (!selectedUser) return;
         
         setIsResetting(true);
-        // Simulasi hit API
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        setIsResetting(false);
-        setResetDialogOpen(false);
-        toast.success(`Password untuk ${selectedUser.name} berhasil direset ke: password123`, {
-            duration: 5000,
-            icon: <CheckCircle2 className="w-5 h-5 text-blue-500" />
+        try {
+            const response = await fetch(`${API_BASE_URL}/guru/index.php`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    id: selectedUser.id,
+                    action: 'reset_password'
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === "success") {
+                toast.success(`Password untuk ${selectedUser.name} berhasil direset ke: password123`, {
+                    duration: 5000,
+                    icon: <CheckCircle2 className="w-5 h-5 text-blue-500" />
+                });
+            } else {
+                toast.error(data.message || "Gagal mereset password");
+            }
+        } catch (err) {
+            toast.error("Terjadi kesalahan koneksi");
+        } finally {
+            setIsResetting(false);
+            setResetDialogOpen(false);
+        }
+    };
+
+    const [addDialogOpen, setAddDialogOpen] = useState(false);
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [formData, setFormData] = useState({
+        name: "",
+        teacherCode: "",
+        email: "",
+        role: "GURU MAPEL"
+    });
+
+    const openEditDialog = (user: any) => {
+        setSelectedUser(user);
+        setFormData({
+            name: user.name,
+            teacherCode: user.teacherCode || "",
+            email: user.email || "",
+            role: user.role
         });
+        setEditDialogOpen(true);
+    };
+
+    const handleSaveUser = async (isNew: boolean) => {
+        if (!formData.name || !formData.teacherCode || !formData.email) {
+            toast.error("Semua field wajib diisi");
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const method = isNew ? 'POST' : 'PUT';
+            const body: any = { ...formData };
+            if (!isNew) body.id = selectedUser.id;
+
+            const response = await fetch(`${API_BASE_URL}/guru/index.php`, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            const data = await response.json();
+
+            if (data.status === "success") {
+                toast.success(isNew ? "User baru berhasil ditambahkan" : "Data user berhasil diperbarui");
+                setAddDialogOpen(false);
+                setEditDialogOpen(false);
+            } else {
+                toast.error(data.message || "Gagal menyimpan data");
+            }
+        } catch (err) {
+            toast.error("Terjadi kesalahan koneksi");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // Re-wrap handleSaveUser to use refetch
+    const onSave = async (isNew: boolean) => {
+        await handleSaveUser(isNew);
+        refetch();
     };
 
     return (
@@ -76,7 +164,13 @@ export default function ITUsersPage() {
                         Kelola akun guru, administrator, dan hak akses sistem.
                     </p>
                 </div>
-                <Button className="bg-[#000080] hover:bg-blue-900 text-white font-bold h-12 rounded-xl shadow-lg shadow-blue-900/10">
+                <Button 
+                    onClick={() => {
+                        setFormData({ name: "", teacherCode: "", email: "", role: "GURU MAPEL" });
+                        setAddDialogOpen(true);
+                    }}
+                    className="bg-[#000080] hover:bg-blue-900 text-white font-bold h-12 rounded-xl shadow-lg shadow-blue-900/10"
+                >
                     <UserPlus className="w-5 h-5 mr-2" /> Tambah User Baru
                 </Button>
             </div>
@@ -129,24 +223,41 @@ export default function ITUsersPage() {
                                     filteredUsers.map((u, i) => (
                                         <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="px-6 py-4">
-                                                <p className="font-bold text-slate-700 whitespace-nowrap">{u.name}</p>
-                                                <p className="text-[10px] text-slate-400 font-mono tracking-wider uppercase">{u.teacherCode ? `KODE: ${u.teacherCode}` : 'ID: ' + u.id}</p>
+                                                <div className="flex flex-col">
+                                                    <p className="font-bold text-slate-700 whitespace-nowrap">{u.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-mono tracking-wider uppercase">{u.teacherCode ? `KODE: ${u.teacherCode}` : 'ID: ' + u.id}</p>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4 text-slate-500 font-medium text-xs">
                                                 {u.email}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <Badge
-                                                    variant={u.role.includes('ADMIN') ? 'default' : 'outline'}
-                                                    className={cn(
-                                                        "font-bold uppercase text-[9px] tracking-widest px-2.5 py-1 rounded-lg",
-                                                        u.role.includes('ADMIN') ? 'bg-[#000080]' : 'text-slate-500 border-slate-200 bg-slate-50'
+                                                <div className="flex flex-wrap gap-1">
+                                                    <Badge
+                                                        variant="secondary"
+                                                        className={cn(
+                                                            "font-bold uppercase text-[9px] tracking-widest px-2 py-1 rounded-lg",
+                                                            u.role.toLowerCase().includes('admin') ? 'bg-purple-100 text-purple-700 hover:bg-purple-100' : 'bg-slate-100 text-slate-700'
+                                                        )}
+                                                    >
+                                                        {u.role.replace('_', ' ')}
+                                                    </Badge>
+                                                    {u.wali_kelas && u.wali_kelas !== "-" && (
+                                                        <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-100 font-bold uppercase text-[9px] tracking-widest px-2 py-1 rounded-lg">
+                                                            Wali Kelas {u.wali_kelas.split(' (')[0]}
+                                                        </Badge>
                                                     )}
-                                                >
-                                                    {u.role.replace('_', ' ')}
-                                                </Badge>
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4 text-right whitespace-nowrap">
+                                            <td className="px-6 py-4 text-right whitespace-nowrap space-x-2">
+                                                <Button 
+                                                    onClick={() => openEditDialog(u)}
+                                                    size="sm" 
+                                                    variant="ghost" 
+                                                    className="h-9 px-4 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-all"
+                                                >
+                                                    Edit
+                                                </Button>
                                                 <Button 
                                                     onClick={() => openResetDialog(u)}
                                                     size="sm" 
@@ -171,6 +282,107 @@ export default function ITUsersPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Add User Dialog */}
+            <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+                <DialogContent className="sm:max-w-md rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-[#000080]">Tambah User Baru</DialogTitle>
+                        <DialogDescription>
+                            Daftarkan guru baru ke sistem dengan akses login.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Nama Lengkap</Label>
+                            <Input 
+                                value={formData.name} 
+                                onChange={e => setFormData({...formData, name: e.target.value})} 
+                                placeholder="Masukkan nama lengkap..."
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Kode Guru (ID)</Label>
+                            <Input 
+                                value={formData.teacherCode} 
+                                onChange={e => setFormData({...formData, teacherCode: e.target.value})} 
+                                placeholder="Contoh: 101"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Email Sekolah</Label>
+                            <Input 
+                                value={formData.email} 
+                                onChange={e => setFormData({...formData, email: e.target.value})} 
+                                placeholder="guru@sekolah.id"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Peran / Role Access</Label>
+                            <Select value={formData.role} onValueChange={v => setFormData({...formData, role: v})}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Pilih Role" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Guru Mapel">Guru Mapel</SelectItem>
+                                    <SelectItem value="Wali Kelas">Wali Kelas</SelectItem>
+                                    <SelectItem value="Guru BK">Guru BK / Konseling</SelectItem>
+                                    <SelectItem value="ADMIN">Administrator IT</SelectItem>
+                                    <SelectItem value="ADMIN_TU">Admin TU</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setAddDialogOpen(false)} disabled={isSaving}>Batal</Button>
+                        <Button onClick={() => onSave(true)} disabled={isSaving} className="bg-[#000080]">
+                            {isSaving ? "Menyimpan..." : "Simpan User"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Edit User Dialog */}
+            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+                <DialogContent className="sm:max-w-md rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="text-[#000080]">Edit Akses User</DialogTitle>
+                        <DialogDescription>
+                            Perbarui informasi kontak dan peran untuk {selectedUser?.name}.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="space-y-2">
+                            <Label>Email Sekolah</Label>
+                            <Input 
+                                value={formData.email} 
+                                onChange={e => setFormData({...formData, email: e.target.value})} 
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Peran / Role Access</Label>
+                            <Select value={formData.role} onValueChange={v => setFormData({...formData, role: v})}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="Guru Mapel">Guru Mapel</SelectItem>
+                                    <SelectItem value="Wali Kelas">Wali Kelas</SelectItem>
+                                    <SelectItem value="Guru BK">Guru BK / Konseling</SelectItem>
+                                    <SelectItem value="ADMIN">Administrator IT</SelectItem>
+                                    <SelectItem value="ADMIN_TU">Admin TU</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditDialogOpen(false)} disabled={isSaving}>Batal</Button>
+                        <Button onClick={() => onSave(false)} disabled={isSaving} className="bg-[#000080]">
+                            {isSaving ? "Menyimpan..." : "Perbarui User"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Reset Password Dialog */}
             <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>

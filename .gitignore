@@ -48,9 +48,10 @@ tsc_output.txt
 # antigravity
 .gemini/
 scratch/
+tmp_*.php
+test_*.php
 *.txt
 *.sql
 *.log
-*.php
 !database.sql
 !schema.json

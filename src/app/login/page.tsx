@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
+import { getApiBaseUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,46 +30,63 @@ export default function LoginPage() {
         setError("");
         setLoading(true);
 
-        // Slight delay for UX
-        await new Promise((r) => setTimeout(r, 500));
-
-        let success = login(email, password);
-        let user = useAppStore.getState().currentUser;
-
-        if (!success) {
-            try {
-                const res = await fetch(`http://127.0.0.1/presensipander/api/ortu/index.php?action=login`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ nik: email, password: password })
-                });
-                const data = await res.json();
-                
-                if (data.status === "success" && data.data) {
-                    const ortuUser: any = {
-                        id: data.data.id,
-                        name: data.data.name,
-                        email: data.data.email,
-                        nik: data.data.nik,
-                        role: "ORTU",
-                        phone: data.data.phone
-                    };
-                    useAppStore.setState({ currentUser: ortuUser });
-                    success = true;
-                    user = ortuUser;
-                }
-            } catch (err) { }
+        // Try Guru Login first
+        try {
+            const res = await fetch(`${getApiBaseUrl()}/guru/login.php`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: email, password: password })
+            });
+            const data = await res.json();
+            
+            if (data.status === "success" && data.data) {
+                const guruUser: any = {
+                    id: String(data.data.id),
+                    name: data.data.name,
+                    email: data.data.email,
+                    teacherCode: data.data.teacherCode,
+                    role: data.data.role.toUpperCase().replace(' ', '_'),
+                    phone: data.data.phone,
+                    waliKelasRombelName: data.data.wali_kelas,
+                    isBK: Boolean(data.data.isBK)
+                };
+                useAppStore.setState({ currentUser: guruUser });
+                router.push("/select-year");
+                setLoading(false);
+                return;
+            }
+        } catch (err) { 
+            console.error("Guru login error", err);
         }
 
-        if (!success) {
-            setError("Email / NIK atau password salah");
-            setLoading(false);
-            return;
+        // If not Guru, try Ortu Login
+        try {
+            const res = await fetch(`${getApiBaseUrl()}/ortu/index.php?action=login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ nik: email, password: password })
+            });
+            const data = await res.json();
+            
+            if (data.status === "success" && data.data) {
+                const ortuUser: any = {
+                    id: data.data.id,
+                    name: data.data.name,
+                    email: data.data.email,
+                    nik: data.data.nik,
+                    role: "ORTU",
+                    phone: data.data.phone
+                };
+                useAppStore.setState({ currentUser: ortuUser });
+                router.push("/select-year");
+                setLoading(false);
+                return;
+            }
+        } catch (err) { 
+            console.error("Ortu login error", err);
         }
 
-        if (user) {
-            router.push("/select-year");
-        }
+        setError("Email / NIK atau password salah");
         setLoading(false);
     }
 

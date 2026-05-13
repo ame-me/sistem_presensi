@@ -30,7 +30,7 @@ interface NavItem {
 }
 
 interface SidebarProps {
-    role: "ADMIN" | "ADMIN_IT" | "GURU" | "ORTU";
+    role: "ADMIN" | "ADMIN_IT" | "GURU" | "ORTU" | "ADMIN_TU";
     userName: string;
     teacherCode?: string;
 }
@@ -68,6 +68,7 @@ const roleLabels: Record<string, string> = {
     ADMIN: "Administrator",
     KEPALA_SEKOLAH: "Kepala Sekolah",
     ADMIN_IT: "Admin IT Server",
+    ADMIN_TU: "Admin Tata Usaha",
     GURU: "Portal Guru",
     ORTU: "Portal Orang Tua",
 };
@@ -75,6 +76,7 @@ const roleLabels: Record<string, string> = {
 const roleColors: Record<string, string> = {
     ADMIN: "bg-[#000080] shadow-blue-900/10",
     ADMIN_IT: "bg-[#000080] shadow-blue-900/10",
+    ADMIN_TU: "bg-[#000080] shadow-blue-900/10",
     GURU: "bg-[#000080] shadow-blue-900/10",
     ORTU: "bg-[#000080] shadow-blue-900/10",
 };
@@ -82,10 +84,13 @@ const roleColors: Record<string, string> = {
 export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
+    const currentUser = useAppStore((s) => s.currentUser);
     const logout = useAppStore((s) => s.logout);
 
     // Identifikasi Kepala Sekolah (ADMIN dengan kode 1)
     const isKepalaSekolah = role === "ADMIN" && teacherCode === "1";
+
+    const isWaliKelasPanel = pathname.startsWith("/guru/wali-kelas");
 
     const items = isKepalaSekolah
         ? [
@@ -93,6 +98,18 @@ export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
             { label: "Data Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
             { label: "Data Ruangan", href: "/admin/ruangan", icon: <Building2 className="w-5 h-5" /> },
             { label: "Laporan Presensi", href: "/admin/mapel/analitik", icon: <ClipboardList className="w-5 h-5" /> },
+        ]
+        : isWaliKelasPanel 
+        ? [
+            { label: "Panel Wali Kelas", href: "/guru/wali-kelas", icon: <LayoutDashboard className="w-5 h-5" /> },
+            { label: "Menu Utama", href: "/select-role", icon: <Users className="w-5 h-5" /> },
+        ]
+        : role === "GURU"
+        ? [
+            ...navItems["GURU"],
+            ...(currentUser?.waliKelasRombelName && currentUser.waliKelasRombelName !== "-" 
+                ? [{ label: "Panel Wali Kelas", href: "/select-role", icon: <GraduationCap className="w-5 h-5 text-emerald-600" /> }] 
+                : [])
         ]
         : role === "ADMIN_TU"
         ? navItems["ADMIN"]
@@ -186,7 +203,9 @@ export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-slate-800 truncate">{userName}</p>
-                            <p className="text-[10px] font-medium text-slate-500 uppercase">{isKepalaSekolah ? roleLabels.KEPALA_SEKOLAH : roleLabels[role]}</p>
+                            <p className="text-[10px] font-medium text-slate-500 uppercase">
+                                {isKepalaSekolah ? roleLabels.KEPALA_SEKOLAH : isWaliKelasPanel ? "WALI KELAS " + (currentUser?.waliKelasRombelName || "") : roleLabels[role]}
+                            </p>
                         </div>
                     </div>
                     <Button

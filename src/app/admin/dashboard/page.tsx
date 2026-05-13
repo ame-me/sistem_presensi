@@ -601,7 +601,7 @@ export default function AdminDashboardPage() {
                                                                     {lesson.class_name}
                                                                 </p>
                                                                 <p className="text-[9px] font-bold text-slate-400 mt-0.5 truncate uppercase tracking-tighter">
-                                                                    {lesson.subject_hint || "Mapel"}
+                                                                    {lesson.subject_hint || lesson.teacher_mapel?.split(' (')[0] || "Mata Pelajaran"}
                                                                 </p>
                                                             </div>
                                                             <div className="text-[9px] font-black text-slate-300 font-mono">

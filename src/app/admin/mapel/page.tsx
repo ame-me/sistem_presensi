@@ -432,8 +432,8 @@ export default function AdminMapelPage() {
                                         return a.name.localeCompare(b.name);
                                     }).map((m, i) => (
                                         <TableRow key={i} className="hover:bg-slate-50/50">
-                                            <TableCell className="font-mono text-xs font-bold text-slate-500 text-center">{m.code}</TableCell>
-                                            <TableCell className="font-bold text-slate-800">{m.name}</TableCell>
+                                            <TableCell className="font-mono text-xs font-bold text-slate-500 text-center">{m.code.split(' (')[0]}</TableCell>
+                                            <TableCell className="font-bold text-slate-800">{m.name.split(' (')[0]}</TableCell>
                                             <TableCell className="text-center">
                                                 <Badge variant="outline" className="font-bold text-slate-600 border-slate-200 bg-slate-50">
                                                     Kls {m.grade}

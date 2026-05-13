@@ -52,6 +52,7 @@ import { useJadwalData } from "@/hooks/useJadwalData";
 import { useAttendanceData } from "@/hooks/useAttendanceData";
 import { useIzinData, reviewIzinAPI } from "@/hooks/useIzinData";
 import { useNotificationData } from "@/hooks/useNotificationData";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 const DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
 const DAY_MAP: Record<string, number> = {
@@ -86,7 +87,7 @@ export default function GuruDashboardPage() {
     const handleGoToAttendance = async (notif: any) => {
         setNavigatingId(notif.id);
         try {
-            const res = await fetch("http://127.0.0.1/presensipander/api/notifikasi/index.php", {
+            const res = await fetch(`${getApiBaseUrl()}/notifikasi/index.php`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ id: notif.id, action: "dismiss" })
@@ -125,7 +126,11 @@ export default function GuruDashboardPage() {
     const rombels = Array.from(new Set(schedules.map(s => s.className))).map(name => ({ id: name, name }));
     const pendingLeave = allIzin.filter((i: any) => i.status === "PENDING");
     const approvedLeave = allIzin.filter((i: any) => i.status === "APPROVED");
-    const isGuru = currentUser?.role === 'GURU';
+    const isGuru = currentUser && (
+        currentUser.role.includes("GURU") || 
+        currentUser.role.includes("WALI") || 
+        currentUser.role.includes("KELAS")
+    );
     
     const todayIndex = new Date().getDay();
     const todaySchedulesRaw = (schedules || []).filter((s) => {

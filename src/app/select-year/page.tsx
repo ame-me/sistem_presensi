@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/store";
+import { getApiBaseUrl } from "@/lib/api-config";
 import { Button } from "@/components/ui/button";
 import {
     Card,
@@ -36,7 +37,8 @@ export default function SelectYearPage() {
             return;
         }
 
-        fetch("http://127.0.0.1/presensipander/api/config/tahun_ajaran.php")
+        const API_BASE = getApiBaseUrl();
+        fetch(`${API_BASE}/config/tahun_ajaran.php`)
             .then(res => res.json())
             .then(data => {
                 if (data.status === "success") {
@@ -62,20 +64,16 @@ export default function SelectYearPage() {
         // Slight delay for premium feel
         setTimeout(() => {
             if (currentUser) {
-                switch (currentUser.role) {
-                    case "ADMIN":
-                    case "ADMIN_TU":
-                        router.push("/admin/dashboard");
-                        break;
-                    case "ADMIN_IT":
-                        router.push("/it/dashboard");
-                        break;
-                    case "GURU":
-                        router.push("/guru/dashboard");
-                        break;
-                    case "ORTU":
-                        router.push("/ortu/dashboard");
-                        break;
+                const role = currentUser.role.toUpperCase();
+                if (role.includes("ADMIN_IT")) {
+                    router.push("/it/dashboard");
+                } else if (role.includes("ADMIN")) {
+                    router.push("/admin/dashboard");
+                } else if (role.includes("ORTU")) {
+                    router.push("/ortu/dashboard");
+                } else {
+                    // Default for Guru Mapel, Wali Kelas, Guru BK, etc.
+                    router.push("/select-role");
                 }
             }
         }, 800);

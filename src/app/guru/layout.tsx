@@ -11,7 +11,13 @@ export default function GuruLayout({ children }: { children: ReactNode }) {
     const router = useRouter();
 
     useEffect(() => {
-        if (!currentUser || currentUser.role !== "GURU") {
+        const isTeacher = currentUser && (
+            currentUser.role.includes("GURU") || 
+            currentUser.role.includes("WALI") || 
+            currentUser.role.includes("KELAS")
+        );
+
+        if (!currentUser || !isTeacher) {
             router.replace("/login");
             return;
         }
@@ -22,7 +28,13 @@ export default function GuruLayout({ children }: { children: ReactNode }) {
         }
     }, [currentUser, router]);
 
-    if (!currentUser || currentUser.role !== "GURU") return null;
+    const isTeacher = currentUser && (
+        currentUser.role.includes("GURU") || 
+        currentUser.role.includes("WALI") || 
+        currentUser.role.includes("KELAS")
+    );
+
+    if (!currentUser || !isTeacher) return null;
 
     return (
         <div className="min-h-screen bg-background text-slate-800">

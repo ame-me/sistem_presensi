@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAppStore } from '@/lib/store';
+import { getApiBaseUrl } from '@/lib/api-config';
  
 export interface SiswaAPI {
     id: number;
@@ -37,8 +38,7 @@ export function useSiswaData(className?: string, parentId?: string, parentNik?: 
             if (parentNik) params.append('parent_nik', parentNik);
             if (selectedTahunAjaran) params.append('tahun_ajaran', selectedTahunAjaran);
             
-            // Menggunakan 127.0.0.1 untuk menghindari isu resolusi localhost pada beberapa sistem
-            const url = `http://127.0.0.1/presensipander/api/siswa/index.php?${params.toString()}`;
+            const url = `${getApiBaseUrl()}/siswa/index.php?${params.toString()}`;
             
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);

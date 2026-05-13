@@ -53,6 +53,7 @@ import { toast } from "sonner";
 import { useJadwalData } from "@/hooks/useJadwalData";
 import { useSiswaData } from "@/hooks/useSiswaData";
 import { useIzinData } from "@/hooks/useIzinData";
+import { getApiBaseUrl } from "@/lib/api-config";
 
 const STATUS_OPTIONS: { value: AttendanceStatus; label: string; emoji: string; activeClass: string; short: string }[] = [
     { value: "HADIR", label: "Hadir", emoji: "✅", activeClass: "bg-[#10B981] text-white border-[#10B981] shadow-md shadow-emerald-500/20", short: "H" },
@@ -129,7 +130,7 @@ export default function GuruPresensiPage() {
         if (isConfirmed && selectedClassId) {
             const fetchHistory = async () => {
                 try {
-                    const res = await fetch(`http://127.0.0.1/presensipander/api/presensi/index.php?class=${selectedClassId}`);
+                    const res = await fetch(`${getApiBaseUrl()}/presensi/index.php?class=${selectedClassId}`);
                     const data = await res.json();
                     if (data.status === 'success') {
                         setAllAttendance(data.data);
@@ -262,10 +263,10 @@ export default function GuruPresensiPage() {
             const checkExisting = async () => {
                 setLoadingExisting(true);
                 try {
-                    const attRes = await fetch(`http://127.0.0.1/presensipander/api/presensi/index.php?date=${date}&schedule_id=${selectedScheduleId}`);
+                    const attRes = await fetch(`${getApiBaseUrl()}/presensi/index.php?date=${date}&schedule_id=${selectedScheduleId}`);
                     const attData = await attRes.json();
                     
-                    const jurRes = await fetch(`http://127.0.0.1/presensipander/api/jurnal/index.php?date=${date}&schedule_id=${selectedScheduleId}`);
+                    const jurRes = await fetch(`${getApiBaseUrl()}/jurnal/index.php?date=${date}&schedule_id=${selectedScheduleId}`);
                     const jurData = await jurRes.json();
 
                     if (attData.status === 'success' && attData.data.length > 0) {
