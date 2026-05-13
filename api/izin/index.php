@@ -8,7 +8,7 @@ switch($requestMethod) {
         $date = $_GET['date'] ?? null;
         $status = $_GET['status'] ?? null;
         
-        $query = "SELECT i.*, s.name as student_name FROM izin i 
+        $query = "SELECT i.*, s.name as student_name, s.cls, s.nisn, s.noInduk, s.tahun_ajaran FROM izin i 
                   JOIN siswa s ON i.student_id = s.id 
                   WHERE 1=1";
         $params = [];

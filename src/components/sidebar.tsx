@@ -43,6 +43,7 @@ const navItems: Record<string, NavItem[]> = {
         { label: "Mata Pelajaran", href: "/admin/mapel", icon: <BookOpen className="w-5 h-5" /> },
         { label: "Guru", href: "/admin/guru", icon: <Users className="w-5 h-5" /> },
         { label: "Siswa", href: "/admin/siswa", icon: <GraduationCap className="w-5 h-5" /> },
+        { label: "Pengajuan Izin", href: "/admin/izin", icon: <FileText className="w-5 h-5" /> },
         { label: "Rekap Presensi", href: "/admin/rekap", icon: <ClipboardList className="w-5 h-5" /> },
     ],
     ADMIN_IT: [
@@ -70,7 +71,7 @@ const navItems: Record<string, NavItem[]> = {
         { label: "Dashboard", href: "/ortu/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
         { label: "Jadwal Pelajaran", href: "/ortu/jadwal", icon: <BookOpen className="w-5 h-5" /> },
         { label: "Ajukan Izin", href: "/ortu/izin", icon: <FileText className="w-5 h-5" /> },
-        { label: "Riwayat Presensi", href: "/ortu/riwayat", icon: <ClipboardList className="w-5 h-5" /> },
+        { label: "Riwayat & Izin", href: "/ortu/riwayat", icon: <ClipboardList className="w-5 h-5" /> },
     ],
 };
 
@@ -135,7 +136,7 @@ export function Sidebar({ role, userName, teacherCode }: SidebarProps) {
             {/* Mobile toggle */}
             <button
                 onClick={() => setMobileOpen(true)}
-                className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-[#000080] text-white shadow-lg"
+                className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-lg bg-[#000080] text-white shadow-lg print:hidden"
             >
                 <Menu className="w-5 h-5" />
             </button>

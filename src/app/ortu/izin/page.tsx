@@ -116,7 +116,8 @@ export default function OrtuIzinPage() {
         setSubmitting(true);
 
         try {
-            const response = await fetch(`${getApiBaseUrl()}/izin/index.php`, {
+            const baseUrl = getApiBaseUrl();
+            const response = await fetch(`${baseUrl}/izin/index.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

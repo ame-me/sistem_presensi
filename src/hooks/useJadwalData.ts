@@ -16,7 +16,7 @@ export interface JadwalItem {
     room_code: string | null;
 }
 
-export function useJadwalData(dayName?: string, className?: string, teacherCode?: string) {
+export function useJadwalData(dayName?: string, className?: string, teacherCode?: string, tahunAjaranOverride?: string) {
     const selectedTahunAjaran = useAppStore((s) => s.selectedTahunAjaran);
     const [jadwal, setJadwal] = useState<JadwalItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -31,7 +31,9 @@ export function useJadwalData(dayName?: string, className?: string, teacherCode?
             if (dayName) params.append('day', dayName);
             if (className) params.append('class', className);
             if (teacherCode) params.append('teacher', teacherCode);
-            if (selectedTahunAjaran) params.append('tahun_ajaran', selectedTahunAjaran);
+            
+            const targetTahun = tahunAjaranOverride || selectedTahunAjaran;
+            if (targetTahun) params.append('tahun_ajaran', targetTahun);
             
             const url = `${getApiBaseUrl()}/jadwal/index.php?${params.toString()}`;
             

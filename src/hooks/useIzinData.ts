@@ -15,7 +15,8 @@ export function useIzinData(date?: string, status?: string) {
             if (date) params.append('date', date);
             if (status) params.append('status', status);
             
-            const url = `${getApiBaseUrl()}/izin/index.php?${params.toString()}`;
+            const baseUrl = getApiBaseUrl();
+            const url = `${baseUrl}/izin/index.php?${params.toString()}`;
             
             const res = await fetch(url);
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);

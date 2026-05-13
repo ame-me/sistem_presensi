@@ -225,27 +225,23 @@ export default function GuruWaliKelasPage() {
             </div>
 
             {/* Print Header for Document (Class Report) */}
-            <div className="hidden print:block mb-10">
-                <div className="flex items-center gap-8 border-b-4 border-black pb-6">
-                    <div className="w-28 h-28 shrink-0">
-                        <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
-                    </div>
-                    <div className="flex-1 text-center pr-28">
-                        <p className="text-sm font-bold uppercase tracking-[0.2em] leading-none mb-2">PERKUMPULAN DHARMAPUTRI</p>
-                        <h1 className="text-3xl font-black text-[#000080] uppercase leading-tight whitespace-nowrap">SMP KATOLIK SANTA MARIA 2</h1>
-                        <p className="text-md font-bold mt-1 tracking-widest">TERAKREDITASI "A"</p>
-                        <p className="text-[11px] font-medium mt-2 leading-relaxed text-slate-700">
-                            NPSN: 20533833, NSS: 203056101022, NDS: 2005320123<br />
-                            Jl. Panderman No.7A, Gading Kasri, Kec. Klojen, Kota Malang, Jawa Timur 65115<br />
-                            Telp: 0341-368209, WA: 085712355121 | Email: smpksantamaria2@yahoo.co.id
-                        </p>
-                    </div>
+            <div className="hidden print:flex items-center gap-6 border-b-4 border-double border-black pb-6 mb-8 text-black">
+                <div className="w-28 h-28 bg-white flex items-center justify-center shrink-0">
+                    <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
                 </div>
+                <div className="flex-1 text-center">
+                    <h2 className="text-base font-bold uppercase tracking-widest text-slate-800">PERKUMPULAN DHARMAPUTRI</h2>
+                    <h1 className="text-3xl font-black uppercase tracking-tight text-[#000080]">SMP KATOLIK SANTA MARIA 2</h1>
+                    <p className="text-sm font-bold mt-1">TERAKREDITASI "A"</p>
+                    <p className="text-[11px] font-medium mt-1">NPSN: 20533743, NSS: 2030560101019</p>
+                    <p className="text-[11px] font-medium mt-0.5">Jl. Panderman No.7A, Gading Kasri, Kec. Klojen, Kota Malang, Jawa Timur 65115</p>
+                    <p className="text-[11px] font-medium italic mt-0.5 whitespace-nowrap">Telepon: (0341) 551871 | Email: smpksantamaria2mlg@gmail.com</p>
+                </div>
+            </div>
                 <div className="mt-8 text-center space-y-2">
                     <h2 className="text-2xl font-black uppercase underline decoration-2 underline-offset-8">LAPORAN REKAPITULASI PRESENSI SISWA</h2>
                     <p className="text-sm font-bold italic pt-2">Tahun Pelajaran {selectedTahunAjaran}</p>
                 </div>
-            </div>
 
             {/* Quick Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 print:hidden">
@@ -340,7 +336,7 @@ export default function GuruWaliKelasPage() {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <Table>
+                            <Table className="print-table">
                                 <TableHeader className="bg-slate-50/50">
                                     <TableRow className="hover:bg-transparent">
                                         <TableHead className="w-12 text-center font-black text-[#000080]">NO</TableHead>
@@ -580,7 +576,40 @@ export default function GuruWaliKelasPage() {
                 </div>
             </div>
 
-            </div>
+            <style dangerouslySetInnerHTML={{ __html: `
+                @media print {
+                    @page {
+                        size: portrait;
+                        margin: 0;
+                    }
+                    body {
+                        background: white !important;
+                        -webkit-print-color-adjust: exact;
+                        margin: 1.5cm !important;
+                    }
+                    .print-table {
+                        border-collapse: collapse !important;
+                        width: 100% !important;
+                        border: 1.5px solid black !important;
+                    }
+                    .print-table th, .print-table td {
+                        border: 1px solid black !important;
+                        color: black !important;
+                        padding: 8px 4px !important;
+                        background: transparent !important;
+                    }
+                    .print-table th {
+                        background-color: #f1f5f9 !important;
+                        font-weight: 800 !important;
+                        text-transform: uppercase !important;
+                        font-size: 10px !important;
+                    }
+                    .print-table td {
+                        font-size: 11px !important;
+                    }
+                }
+            ` }} />
+        </div>
 
             {/* Hidden Area for Individual Print */}
             <div id="individual-report" className={cn(isPrintingIndividual ? "block" : "hidden")}>
