@@ -18,11 +18,15 @@ export interface User {
     email: string;
     role: Role;
     phone: string;
-    nik?: string;          // NIK untuk Orang Tua
-    teacherCode?: string;    // Kode guru sesuai jadwal yang diberikan
-    homebaseRoomId?: string; // Ruangan tetap untuk mengajar
-    isBK?: boolean;          // Tanda khusus jika guru BK / Piket
-    waliKelasRombelName?: string; // Menjadi wali kelas di Rombel apa
+    nik?: string;
+    teacherCode?: string;
+    homebaseRoomId?: string;
+    isBK?: boolean;
+    waliKelasRombelName?: string;
+    namaAyah?: string;
+    pekerjaanAyah?: string;
+    namaIbu?: string;
+    pekerjaanIbu?: string;
 }
 
 export interface Student {

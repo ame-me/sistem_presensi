@@ -75,6 +75,41 @@ switch($requestMethod) {
                 echo json_encode(["status" => "error", "message" => "NIK and password data are mandatory"]);
             }
             break;
+
+        // Change password logic
+        if ($action === 'change_password') {
+            if (!empty($data['nik']) && !empty($data['current_password']) && !empty($data['new_password'])) {
+
+                // Validate new password length
+                if (strlen($data['new_password']) < 6) {
+                    echo json_encode(["status" => "error", "message" => "Password baru minimal 6 karakter"]);
+                    break;
+                }
+
+                // Get user by NIK and verify current password
+                $stmt = $conn->prepare("SELECT id, password FROM ortu WHERE nik = ?");
+                $stmt->execute([$data['nik']]);
+                $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($row) {
+                    // Verify current password (plain text comparison in this example)
+                    if ($row['password'] === $data['current_password']) {
+                        // Update password
+                        $updateStmt = $conn->prepare("UPDATE ortu SET password = ? WHERE id = ?");
+                        $updateStmt->execute([$data['new_password'], $row['id']]);
+
+                        echo json_encode(["status" => "success", "message" => "Password berhasil diubah"]);
+                    } else {
+                        echo json_encode(["status" => "error", "message" => "Password saat ini salah"]);
+                    }
+                } else {
+                    echo json_encode(["status" => "error", "message" => "User tidak ditemukan"]);
+                }
+            } else {
+                echo json_encode(["status" => "error", "message" => "NIK, password saat ini, dan password baru wajib diisi"]);
+            }
+            break;
+        }
         }
 
         if ($action === 'bulk-upsert') {

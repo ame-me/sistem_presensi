@@ -4,7 +4,7 @@
 
 - Path: `C:\Users\David Augusto\Documents\Porto\sistem_presensi`
 - Stack: Next.js frontend, PHP API, MySQL database, Docker support.
-- Latest verification: `npm.cmd run build` passed.
+- Latest verification: `npm run build` passed.
 
 If running through Docker, rebuild after frontend/API changes:
 
@@ -13,6 +13,37 @@ docker compose up -d --build web api
 ```
 
 ## Completed Work
+
+### Profile Page (Edit Mode)
+
+Files:
+
+- `src/components/profile-page.tsx`
+- `api/guru/update_profile.php`
+- `api/ortu/update_profile.php`
+- `src/components/ui/alert.tsx` (created missing component)
+- `src/app/it/users/page.tsx` (fixed duplicate JSX)
+
+Current behavior:
+
+- All roles (`/guru/profile`, `/ortu/profile`, `/admin/profile`, `/it/profile`) share the same `ProfilePage` component.
+- Profile tab shows read-only user info (name, email, role, phone, etc.)
+- ORTU role additionally shows: namaAyah, pekerjaanAyah, namaIbu, pekerjaanIbu.
+- Edit mode:
+  - "Edit Profil" button toggles edit form.
+  - Form fields vary by role (Guru: name, phone | Ortu: + ayah/ibu info).
+  - Save/Batal buttons for confirmation.
+  - On success, updates Zustand store and resets edit mode.
+
+API endpoints:
+
+```http
+POST /api/guru/update_profile.php
+Body: { "email": "...", "name": "...", "phone": "..." }
+
+POST /api/ortu/update_profile.php
+Body: { "nik": "...", "name": "...", "phone": "...", "namaAyah": "...", "pekerjaanAyah": "...", "namaIbu": "...", "pekerjaanIbu": "..." }
+```
 
 ### Docker/API Config
 
@@ -163,11 +194,28 @@ If students already exist, import ulang is okay because existing students are up
 ## Verification Commands
 
 ```powershell
-npm.cmd run build
+npm run build
 php -l .\api\ortu\index.php
+php -l .\api\guru\update_profile.php
+php -l .\api\ortu\update_profile.php
 ```
 
-Both passed during the session.
+All passed.
+
+## Common Issues & Solutions
+
+### Docker DB Connection Failed
+If API returns "Connection failure: SQLSTATE[HY000] [2002]", restart containers:
+
+```powershell
+docker compose down
+docker compose up -d
+```
+
+Wait for db to be healthy before testing API.
+
+### Hydration Mismatch Warning
+This is caused by browser extension (e.g., JetBrains debugger) adding attributes like `jf-observer-attached="true"`. Not a code issue - can be ignored.
 
 ## Suggested Next Checks
 

@@ -63,6 +63,10 @@ const pageIcons: Record<string, React.ReactNode> = {
     "/ortu/jadwal": <BookOpen className="w-5 h-5" />,
     "/ortu/izin": <FileText className="w-5 h-5" />,
     "/ortu/riwayat": <ClipboardList className="w-5 h-5" />,
+    "/admin/profile": <Settings className="w-5 h-5" />,
+    "/guru/profile": <Settings className="w-5 h-5" />,
+    "/ortu/profile": <Settings className="w-5 h-5" />,
+    "/it/profile": <Settings className="w-5 h-5" />,
 };
 
 const roleLabels: Record<string, string> = {

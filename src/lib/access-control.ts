@@ -46,6 +46,12 @@ export const APP_PAGES: AppPageAccess[] = [
     { section: "Orang Tua", label: "Jadwal Pelajaran", path: "/ortu/jadwal" },
     { section: "Orang Tua", label: "Ajukan Izin", path: "/ortu/izin" },
     { section: "Orang Tua", label: "Riwayat & Izin", path: "/ortu/riwayat" },
+
+    // Profile pages for all roles
+    { section: "Admin IT", label: "Profil & Password", path: "/it/profile" },
+    { section: "Admin TU", label: "Profil & Password", path: "/admin/profile" },
+    { section: "Guru", label: "Profil & Password", path: "/guru/profile" },
+    { section: "Orang Tua", label: "Profil & Password", path: "/ortu/profile" },
 ];
 
 export const LOCKED_ACCESS_ROUTES = new Set(["/it/dashboard", "/it/users"]);
